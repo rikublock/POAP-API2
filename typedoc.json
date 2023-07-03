@@ -1,0 +1,13 @@
+{
+  "name": "POAP Backend API",
+  "includeVersion": true,
+  "readme": "README.md",
+  // "entryPoints": ["./src/attendify/attendify.ts", "./src/attendify/models.ts" ,"./src/server/server.ts"],
+  "entryPoints": ["./src/attendify/", "./src/server/", "./src/types.ts"],
+  // "entryPoints": ["./src"],
+  "out": "docs",
+  "categorizeByGroup": true,
+  "compilerOptions": {
+    "skipLibCheck": true
+  }
+}
