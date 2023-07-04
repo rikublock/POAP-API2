@@ -160,7 +160,7 @@ export class APIPostEventInvite {
   @Expose()
   @IsArray()
   @ArrayNotEmpty()
-  @ArrayMaxSize(50)
+  @ArrayMaxSize(20)
   @ArrayUnique()
   @IsXrpAddress({
     each: true,
