@@ -813,7 +813,7 @@ export class Attendify {
         ...options,
         defaults: {
           walletAddress: walletAddress,
-          isOrganizer: false,
+          isOrganizer: true, // TODO change to false
         },
       });
       return user.toJSON();
