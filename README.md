@@ -55,3 +55,6 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
 - support for alternative IPFS provider (web3.storage)
 - many more overall code improvements
 
+## Documentation 
+
+Full API and module documentation is available [here](https://rikublock.github.io/POAP-API2/).

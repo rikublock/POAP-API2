@@ -1,0 +1,33 @@
+name: docs
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  
+jobs:
+  publish-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout the repository
+        uses: actions/checkout@v3
+
+      - name: setup node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: install dependencies
+        run: yarn install
+
+      - name: compile the docs directory locally
+        run: yarn docs
+
+      - name: deploy
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: docs
