@@ -38,6 +38,7 @@ import {
   verifyXummToken,
 } from "./server/auth";
 import { AttendifyError } from "./attendify/error";
+import { guardMiddleware } from "./server/guard";
 
 export async function main() {
   const AttendifyLib = new Attendify(config.attendify.networkConfigs);
@@ -68,6 +69,7 @@ export async function main() {
   app.post(
     "/event/create",
     authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
+    guardMiddleware("organizer"),
     async (req: JWTRequest, res: Response, next: NextFunction) => {
       try {
         // verify request data
@@ -233,6 +235,7 @@ export async function main() {
   app.post(
     "/event/invite",
     authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
+    guardMiddleware("organizer"),
     async (req: JWTRequest, res: Response, next: NextFunction) => {
       try {
         // verify request data
@@ -371,6 +374,7 @@ export async function main() {
   app.get(
     "/events/owned",
     authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
+    guardMiddleware("organizer"),
     async (req: JWTRequest, res: Response, next: NextFunction) => {
       try {
         // verify request data
