@@ -113,22 +113,25 @@ export async function generateTempToken(pubkey: string): Promise<string> {
   return token;
 }
 
+export type Permission = "attendee" | "organizer" | "admin";
+
 export type JwtPayload = jwt.JwtPayload & {
   walletAddress: string;
-  permissions: string[];
+  permissions: Permission[];
   refreshable: boolean;
 };
 
 export async function generateToken(
   walletAddress: string,
+  permissions: Permission[] = [],
   refreshable: boolean = false,
   expiresIn: string = "12h"
 ): Promise<string> {
   const token = jwt.sign(
     {
-      walletAddress: walletAddress,
-      permissions: [],
-      refreshable: refreshable,
+      walletAddress,
+      permissions,
+      refreshable,
     },
     config.server.jwtSecret,
     {

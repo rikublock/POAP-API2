@@ -31,6 +31,7 @@ import { ServerError, errorHandler } from "./server/error";
 import config from "./config";
 import {
   JwtPayload,
+  Permission,
   generateTempToken,
   generateToken,
   verifyGemToken,
@@ -645,13 +646,21 @@ export async function main() {
           false,
           true
         );
+        const permissions: Permission[] = [
+          "attendee",
+          ...(user.isOrganizer ? ["organizer" as Permission] : []),
+        ];
 
         if (data.walletType == WalletType.XUMM_WALLET) {
           const valid = await verifyXummToken(data.data, data.walletAddress);
 
           if (valid) {
             res.json({
-              result: await generateToken(user.walletAddress, false),
+              result: await generateToken(
+                user.walletAddress,
+                permissions,
+                false
+              ),
             });
           } else {
             return next(
@@ -675,7 +684,11 @@ export async function main() {
           );
           if (valid) {
             res.json({
-              result: await generateToken(user.walletAddress, true),
+              result: await generateToken(
+                user.walletAddress,
+                permissions,
+                true
+              ),
             });
           } else {
             return next(
@@ -706,10 +719,15 @@ export async function main() {
     authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
     async (req: JWTRequest, res: Response, next: NextFunction) => {
       try {
-        const { walletAddress, refreshable } = req.auth as JwtPayload;
+        const { walletAddress, permissions, refreshable } =
+          req.auth as JwtPayload;
         if (refreshable) {
           res.json({
-            result: await generateToken(walletAddress, refreshable),
+            result: await generateToken(
+              walletAddress,
+              permissions,
+              refreshable
+            ),
           });
         } else {
           res.json({
