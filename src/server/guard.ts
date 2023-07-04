@@ -1,6 +1,6 @@
+import { HttpStatusCode } from "axios";
 import type { Response, NextFunction } from "express";
 import { Request as JWTRequest } from "express-jwt";
-import { StatusCodes } from "http-status-codes";
 
 import { JwtPayload, Permission } from "./auth";
 import { ServerError } from "./error";
@@ -23,7 +23,7 @@ export function guardMiddleware(required: Permission | Permission[]) {
 
     return next(
       !sufficient
-        ? new ServerError(StatusCodes.FORBIDDEN, "Permission denied")
+        ? new ServerError(HttpStatusCode.Forbidden, "Permission denied")
         : null
     );
   };

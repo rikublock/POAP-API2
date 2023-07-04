@@ -1,10 +1,10 @@
+import { HttpStatusCode } from "axios";
 import type { Request, Response, NextFunction } from "express";
 import express from "express";
 import {
   expressjwt as authMiddleware,
   Request as JWTRequest,
 } from "express-jwt";
-import { StatusCodes } from "http-status-codes";
 import cors from "cors";
 import { validate } from "class-validator";
 import { plainToClass } from "class-transformer";
@@ -88,7 +88,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -156,7 +156,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -205,7 +205,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -254,7 +254,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -306,7 +306,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -343,7 +343,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -393,7 +393,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -443,7 +443,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -491,7 +491,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -541,7 +541,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -600,7 +600,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -638,7 +638,7 @@ export async function main() {
         if (errors.length > 0) {
           return next(
             new ServerError(
-              StatusCodes.BAD_REQUEST,
+              HttpStatusCode.BadRequest,
               "Data validation failed",
               errors
             )
@@ -669,7 +669,7 @@ export async function main() {
           } else {
             return next(
               new ServerError(
-                StatusCodes.BAD_REQUEST,
+                HttpStatusCode.BadRequest,
                 "Xumm token verification failed"
               )
             );
@@ -677,7 +677,7 @@ export async function main() {
         } else if (data.walletType == WalletType.GEM_WALLET) {
           if (!data.signature) {
             return next(
-              new ServerError(StatusCodes.BAD_REQUEST, "Missing Gem signature")
+              new ServerError(HttpStatusCode.BadRequest, "Missing Gem signature")
             );
           }
 
@@ -697,14 +697,14 @@ export async function main() {
           } else {
             return next(
               new ServerError(
-                StatusCodes.BAD_REQUEST,
+                HttpStatusCode.BadRequest,
                 "Gem token verification failed"
               )
             );
           }
         } else {
           return next(
-            new ServerError(StatusCodes.BAD_REQUEST, "Invalid login type")
+            new ServerError(HttpStatusCode.BadRequest, "Invalid login type")
           );
         }
       } catch (error) {

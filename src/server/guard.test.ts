@@ -1,6 +1,6 @@
-import type { Response, NextFunction } from "express";
+import { HttpStatusCode } from "axios";
 import { Request as JWTRequest } from "express-jwt";
-import { StatusCodes } from "http-status-codes";
+import type { Response, NextFunction } from "express";
 
 import { guardMiddleware } from "./guard";
 import { JwtPayload } from "./auth";
@@ -26,7 +26,7 @@ describe("Test Guard Middleware", () => {
   });
 
   const PermissionError = new ServerError(
-    StatusCodes.FORBIDDEN,
+    HttpStatusCode.Forbidden,
     "Permission denied"
   );
 
