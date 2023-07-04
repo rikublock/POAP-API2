@@ -18,7 +18,7 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
   - configure IFPS provider (one is sufficient):
     - `INFURA_ID` and `INFURA_SECRET` (create account [here](https://docs.infura.io/infura/getting-started))
     - `WEB3_STORAGE_API_TOKEN` (login with github account, see [here](https://web3.storage/login/))
-  - configure XUMM App
+  - configure XUMM App (needs to match the key embedded in the frontend App)
     - `XUMM_API_KEY` and `XUMM_API_SECRET` (create account [here](https://apps.xumm.dev/), make sure to set the origin URIs, e.g. `http://localhost:3000`)
   - configure JWT
     - `JWT_SECRET` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
