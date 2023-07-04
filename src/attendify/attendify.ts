@@ -336,6 +336,9 @@ export class Attendify {
     // pick an NFT that has not been assigned to a claim
     const nft = (
       await orm.NFT.findAll({
+        where: {
+          eventId: event.id,
+        },
         include: [
           {
             association: orm.NFT.associations.claim,
