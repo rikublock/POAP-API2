@@ -1,7 +1,10 @@
-import { NetworkIdentifier, NetworkConfig } from "./types";
+import type { Options as SequelizeOptions } from "sequelize";
 import "dotenv/config";
 
+import { NetworkIdentifier, NetworkConfig } from "./types";
+
 type ConfigAttendify = {
+  db: SequelizeOptions;
   networkConfigs: NetworkConfig[];
 };
 
@@ -18,12 +21,23 @@ type ConfigServer = {
 };
 
 export type Config = {
+  isTesting: boolean;
   attendify: ConfigAttendify;
   server: ConfigServer;
 };
 
 const DEFAULT: Config = {
+  isTesting: process.env.NODE_ENV === "test",
   attendify: {
+    db: {
+      dialect: "sqlite",
+      storage: "backend.sqlite3",
+      logging: true,
+      define: {
+        timestamps: false,
+      },
+    },
+
     networkConfigs: [
       {
         networkId: NetworkIdentifier.MAINNET,
@@ -47,7 +61,6 @@ const DEFAULT: Config = {
       },
     ],
   },
-
   server: {
     port: 4000,
     xummApiKey: process.env.XUMM_API_KEY as string,
