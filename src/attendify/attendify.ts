@@ -3,6 +3,7 @@ import {
   convertHexToString,
   convertStringToHex,
   decode,
+  isValidSecret,
   NFTokenCreateOffer,
   NFTokenCreateOfferFlags,
   NFTokenMint,
@@ -23,18 +24,18 @@ import { Metadata, NetworkIdentifier, NetworkConfig } from "../types";
  * claiming, verifying NFT ownership, and fetching list of participants for a particular event
  */
 export class Attendify {
-  nextEventId: number;
-  networkConfigs: NetworkConfig[];
+  private nextEventId: number;
+  private networkConfigs: NetworkConfig[];
 
-  /**
-   * Initializes a new instance of the Attendify class
-   */
   constructor(networkConfigs: NetworkConfig[], nextEventId: number = 0) {
-    // Initializes the next event ID
     this.nextEventId = nextEventId;
     this.networkConfigs = networkConfigs;
   }
 
+  /**
+   * Initializes a new instance of the Attendify class.
+   * This MUST be called before using the library.
+   */
   async init() {
     // init database
     await db.authenticate();
@@ -52,7 +53,7 @@ export class Attendify {
 
     // ensure seed wallet users exist
     for (const config of this.networkConfigs) {
-      if (config.vaultWalletSeed.length > 0) {
+      if (isValidSecret(config.vaultWalletSeed)) {
         const wallet = Wallet.fromSeed(config.vaultWalletSeed);
         await orm.User.findOrCreate({
           where: { walletAddress: wallet.classicAddress },
@@ -65,15 +66,21 @@ export class Attendify {
     }
   }
 
-  private getNetworkConfig(networkId: NetworkIdentifier): NetworkConfig {
+  /**
+   * Get the configuration for a specific network
+   * @param networkId - network identifier
+   * @returns fresh wallet and client instance for a network
+   */
+  // TODO should cache the return values (manage connections)
+  private getNetworkConfig(networkId: NetworkIdentifier): [Client, Wallet] {
     const config = this.networkConfigs.find((obj: NetworkConfig) => {
       return obj.networkId === networkId;
     });
 
-    if (!config) {
-      throw new AttendifyError("Invalid network identifier");
+    if (!config || !isValidSecret(config.vaultWalletSeed)) {
+      throw new AttendifyError("Network not supported");
     }
-    return config;
+    return [new Client(config.url), Wallet.fromSeed(config.vaultWalletSeed)];
   }
 
   /**
@@ -86,8 +93,7 @@ export class Attendify {
     walletAddress: string
   ): Promise<boolean> {
     try {
-      const config = this.getNetworkConfig(networkId);
-      const client = new Client(config.url);
+      const [client, wallet] = this.getNetworkConfig(networkId);
       await client.connect();
       const tx = await client.getBalances(walletAddress);
       await client.disconnect();
@@ -184,11 +190,10 @@ export class Attendify {
     address: string,
     taxon: number
   ) {
-    const config = this.getNetworkConfig(networkId);
+    const [client, wallet] = this.getNetworkConfig(networkId);
     try {
       if ((await this.checkIfAccountExists(networkId, address)) == false)
         throw new Error(`Account from request was not found on XRPL`);
-      const client = new Client(config.url);
       await client.connect();
       let nfts = await client.request({
         command: "account_nfts",
@@ -238,15 +243,12 @@ export class Attendify {
     if (!(await this.checkIfAccountExists(networkId, walletAddress))) {
       throw new AttendifyError("Account from not found on XRPL");
     }
-
-    const config = this.getNetworkConfig(networkId);
-    const seller = Wallet.fromSeed(config.vaultWalletSeed);
-    const client = new Client(config.url);
+    const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
     // Preparing transaction data
     const transactionBlob: NFTokenCreateOffer = {
       TransactionType: "NFTokenCreateOffer",
-      Account: seller.classicAddress,
+      Account: wallet.classicAddress,
       NFTokenID: tokenId,
       Amount: "0",
       Flags: NFTokenCreateOfferFlags.tfSellNFToken,
@@ -254,7 +256,7 @@ export class Attendify {
     };
     // Submitting transaction to XRPL
     const tx = await client.submitAndWait(transactionBlob, {
-      wallet: seller,
+      wallet: wallet,
     });
     console.log("tx create offer", tx);
     // TODO is it really necessary to do that ? Cant we get the offer index elsewhere, from tx?
@@ -306,10 +308,8 @@ export class Attendify {
     }
 
     // find an available NFT
-    const config = this.getNetworkConfig(event.networkId);
-    const issuerWalletAddress = Wallet.fromSeed(
-      config.vaultWalletSeed
-    ).classicAddress;
+    const [client, wallet] = this.getNetworkConfig(event.networkId);
+    const issuerWalletAddress = wallet.classicAddress;
 
     // TODO rework available NFT lookup
     const claimableTokens = await this.getBatchNFTokens(
@@ -424,8 +424,7 @@ export class Attendify {
     tokenId: string,
     offerIndex: string
   ): Promise<boolean> {
-    const config = this.getNetworkConfig(networkId);
-    const client = new Client(config.url);
+    const [client, wallet] = this.getNetworkConfig(networkId);
     try {
       // Note: this throws, if there are no offers
       await client.connect();
@@ -551,29 +550,31 @@ export class Attendify {
     uri: string,
     isManaged: boolean
   ) {
-    const config = this.getNetworkConfig(networkId);
+    const eventId = this.nextEventId;
+
+    const [client, wallet] = this.getNetworkConfig(networkId);
+    await client.connect();
     try {
-      const curentEventId = this.nextEventId;
       if ((await this.checkIfAccountExists(networkId, walletAddress)) == false)
         throw new Error(`Account from request was not found om XRPL`);
-      const client = new Client(config.url);
-      await client.connect();
-      const vaultWallet = Wallet.fromSeed(config.vaultWalletSeed);
+
       const nftokenCount = metadata.tokenCount;
       let remainingTokensBeforeTicketing = nftokenCount;
       for (let currentTickets; remainingTokensBeforeTicketing != 0; ) {
         let maxTickets =
           250 -
-          (await this.getAccountTickets(vaultWallet.address, client)).length;
+          (await this.getAccountTickets(wallet.address, client)).length;
         console.log("Max tickets", maxTickets);
         if (maxTickets == 0)
           throw new Error(
             `The minter has maximum allowed number of tickets at the moment. Please try again later, remove tickets that are not needed or use different minter account.`
           );
         const balanceForTickets = Math.floor(
-          (parseFloat(await client.getXrpBalance(vaultWallet.address)) - 1) / 2
+          (parseFloat(await client.getXrpBalance(wallet.address)) - 1) / 2
         );
-        if (balanceForTickets < maxTickets) maxTickets = balanceForTickets;
+        if (balanceForTickets < maxTickets) {
+          maxTickets = balanceForTickets;
+        }
         if (remainingTokensBeforeTicketing > maxTickets) {
           currentTickets = maxTickets;
         } else {
@@ -582,22 +583,22 @@ export class Attendify {
         // Get account information, particularly the Sequence number.
         const account_info = await client.request({
           command: "account_info",
-          account: vaultWallet.address,
+          account: wallet.address,
         });
         const my_sequence = account_info.result.account_data.Sequence;
         // Create the transaction hash.
         const ticketTransaction = await client.autofill({
           TransactionType: "TicketCreate",
-          Account: vaultWallet.address,
+          Account: wallet.address,
           TicketCount: currentTickets,
           Sequence: my_sequence,
         });
         // Sign the transaction.
-        const signedTransaction = vaultWallet.sign(ticketTransaction);
+        const signedTransaction = wallet.sign(ticketTransaction);
         // Submit the transaction and wait for the result.
         const tx = await client.submitAndWait(signedTransaction.tx_blob);
         const resTickets = await this.getAccountTickets(
-          vaultWallet.address,
+          wallet.address,
           client
         );
         // Populate the tickets array variable.
@@ -618,7 +619,7 @@ export class Attendify {
           );
           const transactionBlob: NFTokenMint = {
             TransactionType: "NFTokenMint",
-            Account: vaultWallet.classicAddress,
+            Account: wallet.classicAddress,
             URI: convertStringToHex(uri),
             Flags: NFTokenMintFlags.tfTransferable,
             /*{
@@ -628,11 +629,11 @@ export class Attendify {
             TransferFee: 0,
             Sequence: 0,
             TicketSequence: tickets[i],
-            NFTokenTaxon: curentEventId,
+            NFTokenTaxon: eventId,
           };
           // Submit signed blob.
           const tx = await client.submit(transactionBlob, {
-            wallet: vaultWallet,
+            wallet: wallet,
           });
           txHashes.push(tx.result.tx_json.hash);
         }
@@ -644,7 +645,7 @@ export class Attendify {
       client.disconnect();
 
       await this.addEvent(
-        curentEventId,
+        eventId,
         networkId,
         walletAddress,
         metadata.title,
@@ -658,7 +659,7 @@ export class Attendify {
       );
       this.nextEventId++;
 
-      return curentEventId;
+      return eventId;
     } catch (error) {
       console.error(error);
       throw error;
