@@ -6,10 +6,12 @@ import {
   LedgerEntry,
   NFTokenCreateOffer,
   NFTokenCreateOfferFlags,
+  NFTokenMint,
   NFTokenMintFlags,
   RippledError,
   TransactionMetadata,
   Wallet,
+  TxResponse,
 } from "xrpl";
 import type { CreatedNode } from "xrpl/dist/npm/models/transactions/metadata";
 import type { NFTOffer } from "xrpl/dist/npm/models/common";
@@ -17,6 +19,7 @@ import type { NFTOffer } from "xrpl/dist/npm/models/common";
 import { AttendifyError } from "./error";
 import { db, orm } from "./models";
 import { Metadata, NetworkIdentifier, NetworkConfig } from "../types";
+import { waitForFinalTransactionOutcome } from "./utils";
 
 const DEFAULT_TICKET_RESERVE = 2; // XRP
 
@@ -86,69 +89,32 @@ export class Attendify {
   }
 
   /**
-   *
-   * @param {string} walletAddress - The address of the participant's wallet
-   * @returns true if account was found on selected network or false if it wasn't
+   * Check if an account exists on the XRPL
+   * @param walletAddress - account wallet address
+   * @returns  true, if the operation was successful
    */
-  private async checkIfAccountExists(
+  async checkAccountExists(
     networkId: NetworkIdentifier,
     walletAddress: string
   ): Promise<boolean> {
-    try {
-      const [client, wallet] = this.getNetworkConfig(networkId);
-      await client.connect();
-      const tx = await client.getBalances(walletAddress);
-      await client.disconnect();
-      console.log(tx);
-      return true;
-    } catch (error) {
-      console.error(error);
-      return false;
-    }
-  }
-
-  /**
-   * Checks for all NFTs owned by a particular address
-   * @param {string} address - The wallet address to check
-   * @param {number} [taxon] - An optional parameter used to filter the NFTs by taxon
-   * @returns {object[]} - An array of NFTs owned by the given address. If no NFTs are found, returns an empty array
-   */
-  // TODO cache NFTs to avoid having to query them on each request
-  async getBatchNFTokens(
-    networkId: NetworkIdentifier,
-    address: string,
-    taxon: number
-  ) {
     const [client, wallet] = this.getNetworkConfig(networkId);
+    await client.connect();
     try {
-      if ((await this.checkIfAccountExists(networkId, address)) == false)
-        throw new Error(`Account from request was not found on XRPL`);
-      await client.connect();
-      let nfts = await client.request({
-        command: "account_nfts",
-        account: address,
+      await client.request({
+        command: "account_info",
+        account: walletAddress,
       });
-      let accountNfts = nfts.result.account_nfts;
-      //console.log("Found ", accountNfts.length, " NFTs in account ", address);
-      while (true) {
-        if (nfts["result"]["marker"] === undefined) {
-          break;
-        } else {
-          nfts = await client.request({
-            command: "account_nfts",
-            account: address,
-            marker: nfts["result"]["marker"],
-          });
-          accountNfts = accountNfts.concat(nfts.result.account_nfts);
+      return true;
+    } catch (err) {
+      if (err instanceof RippledError) {
+        if ((err.data as any)?.error_code === 19) {
+          return false;
         }
       }
-      client.disconnect();
-      if (taxon) return accountNfts.filter((a: any) => a.NFTokenTaxon == taxon);
-      return accountNfts;
-    } catch (error) {
-      console.error(error);
+      throw err;
+    } finally {
+      await client.disconnect();
     }
-    return [];
   }
 
   /**
@@ -169,7 +135,7 @@ export class Attendify {
     walletAddress: string,
     tokenId: string
   ) {
-    if (!(await this.checkIfAccountExists(networkId, walletAddress))) {
+    if (!(await this.checkAccountExists(networkId, walletAddress))) {
       throw new AttendifyError("Account from not found on XRPL");
     }
     const [client, wallet] = this.getNetworkConfig(networkId);
@@ -236,33 +202,7 @@ export class Attendify {
       throw new AttendifyError("Unable to find user");
     }
 
-    // find an available NFT
-    const [client, wallet] = this.getNetworkConfig(event.networkId);
-    const issuerWalletAddress = wallet.classicAddress;
-
-    // TODO rework available NFT lookup
-    const claimableTokens = await this.getBatchNFTokens(
-      event.networkId,
-      issuerWalletAddress,
-      eventId
-    );
-    if (claimableTokens.length == 0) {
-      // Note: this should never happen unless db is out of sync
-      throw new AttendifyError("No more available slots");
-    }
-
-    // TODO workaround: db entries should be created when minting the NFTs
-    // create new NFT entries, if they don't exist in db
-    for (const claimableToken of claimableTokens) {
-      if (!(await event.hasNft(claimableToken.NFTokenID))) {
-        await event.createNft({
-          id: claimableToken.NFTokenID,
-          issuerWalletAddress: issuerWalletAddress,
-        });
-      }
-    }
-
-    // pick an NFT that has not been assigned to a claim
+    // find an available NFT that has not been assigned to a claim
     const nft = (
       await orm.NFT.findAll({
         where: {
@@ -354,9 +294,9 @@ export class Attendify {
     offerIndex: string
   ): Promise<boolean> {
     const [client, wallet] = this.getNetworkConfig(networkId);
+    await client.connect();
     try {
       // Note: this throws, if there are no offers
-      await client.connect();
       const offerInfo = await client.request({
         command: "nft_sell_offers",
         nft_id: tokenId,
@@ -444,7 +384,7 @@ export class Attendify {
     networkId: NetworkIdentifier,
     target: number
   ): Promise<number[]> {
-    console.debug(`Preparing ${target} tickets`);
+    console.debug(`Preparing ${target} ticket(s)`);
     target = Math.floor(target);
     if (target > 250) {
       throw new AttendifyError("An account can at most have 250 tickets");
@@ -466,7 +406,7 @@ export class Attendify {
         });
         tickets.push(...(res.result.account_objects as LedgerEntry.Ticket[]));
       } while (res.result.marker);
-      console.debug(`Found ${tickets.length} existing tickets`);
+      console.debug(`Found ${tickets.length} existing ticket(s)`);
 
       // determine the number of new tickets needed
       const ticketSequences = tickets.map((t) => t.TicketSequence);
@@ -492,7 +432,7 @@ export class Attendify {
       }
 
       // create new tickets
-      console.debug(`Creating ${ticketCount} new tickets`);
+      console.debug(`Creating ${ticketCount} new ticket(s)`);
       const tx = await client.submitAndWait(
         {
           TransactionType: "TicketCreate",
@@ -500,6 +440,7 @@ export class Attendify {
           TicketCount: ticketCount,
         },
         {
+          failHard: true,
           wallet: wallet,
         }
       );
@@ -537,7 +478,7 @@ export class Attendify {
     uri: string,
     isManaged: boolean
   ) {
-    if (!(await this.checkIfAccountExists(networkId, walletAddress))) {
+    if (!(await this.checkAccountExists(networkId, walletAddress))) {
       throw new AttendifyError("Unable to find account on XRPL");
     }
 
@@ -547,21 +488,21 @@ export class Attendify {
     if (!owner) {
       throw new AttendifyError("Unable to find user");
     }
-    
+
     const eventId = this.nextEventId;
     const tokenCount = metadata.tokenCount;
 
-    console.debug(`Batch minting ${tokenCount} NFTs`);
+    console.debug(`Batch minting ${tokenCount} NFT(s)`);
     const ticketSequences = await this.prepareTickets(networkId, tokenCount);
 
     const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
     try {
       // batch mint NFTs
-      const txHashes: Array<string | undefined> = [];
+      const txInfos: Array<{ hash: string; lastSequence: number }> = [];
       for (let i = 0; i < tokenCount; ++i) {
         console.debug(`Minting NFT ${i + 1}/${tokenCount}`);
-        const tx = await client.submit(
+        const response = await client.submit(
           {
             TransactionType: "NFTokenMint",
             Account: wallet.classicAddress,
@@ -574,14 +515,40 @@ export class Attendify {
             NFTokenTaxon: eventId,
           },
           {
+            failHard: true,
             wallet: wallet,
           }
         );
-        txHashes.push(tx.result.tx_json.hash);
+
+        const hash = response.result.tx_json.hash;
+        const lastSequence = response.result.tx_json.LastLedgerSequence;
+        if (!hash || !lastSequence) {
+          throw new AttendifyError("Failed to submit NFT mint transaction");
+        }
+        txInfos.push({
+          hash,
+          lastSequence,
+        });
       }
 
-      // TODO ensure all transactions succeeded before creating db entries
+      // verify transactions
+      console.debug("Verifying mint transaction(s)");
+      const tokenIds: string[] = [];
+      for (let i = 0; i < txInfos.length; ++i) {
+        console.debug(txInfos[i].hash);
+        const tx = await waitForFinalTransactionOutcome<NFTokenMint>(
+          client,
+          txInfos[i].hash,
+          txInfos[i].lastSequence
+        );
+        tokenIds.push((tx.result.meta as any).nftoken_id);
+      }
 
+      if (tokenIds.length != tokenCount) {
+        throw new AttendifyError("NFT mint verification failed");
+      }
+
+      // add event to database
       const event = await owner.createEvent({
         id: eventId,
         networkId: networkId,
@@ -598,7 +565,13 @@ export class Attendify {
       // increment next event id
       this.nextEventId++;
 
-      // TODO add NFTs to database
+      // add NFTs to database
+      for (let i = 0; i < tokenIds.length; ++i) {
+        await event.createNft({
+          id: tokenIds[i],
+          issuerWalletAddress: wallet.classicAddress,
+        });
+      }
 
       return event.id;
     } finally {
