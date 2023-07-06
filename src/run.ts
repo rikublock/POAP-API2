@@ -110,7 +110,7 @@ export async function main() {
 
         const metadataUrl = await postToIPFS(JSON.stringify(metadata));
 
-        const eventId = await AttendifyLib.batchMint(
+        const eventId = await AttendifyLib.createEvent(
           data.networkId,
           data.walletAddress,
           metadata,

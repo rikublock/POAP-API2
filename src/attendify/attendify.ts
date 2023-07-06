@@ -1,22 +1,24 @@
 import {
+  AccountObjectsResponse,
   Client,
-  convertHexToString,
   convertStringToHex,
-  decode,
   isValidSecret,
+  LedgerEntry,
   NFTokenCreateOffer,
   NFTokenCreateOfferFlags,
-  NFTokenMint,
   NFTokenMintFlags,
-  parseNFTokenID,
   RippledError,
+  TransactionMetadata,
   Wallet,
 } from "xrpl";
-import { NFTOffer } from "xrpl/dist/npm/models/common";
+import type { CreatedNode } from "xrpl/dist/npm/models/transactions/metadata";
+import type { NFTOffer } from "xrpl/dist/npm/models/common";
 
 import { AttendifyError } from "./error";
 import { db, orm } from "./models";
 import { Metadata, NetworkIdentifier, NetworkConfig } from "../types";
+
+const DEFAULT_TICKET_RESERVE = 2; // XRP
 
 /**
  * Attendify is API library for proof of attendance infrastructure on XRPL
@@ -103,79 +105,6 @@ export class Attendify {
       console.error(error);
       return false;
     }
-  }
-
-  /**
-   * Adds a new event to the database
-   * @param {string} ownerAddress - The address of the event owner's wallet
-   * @param {number} eventId - The ID of the event
-   * @param {string} title - Title of the event
-   * @param {string} uri - Metadata URI
-   * @param {Date} dateStart - Start date of the event
-   * @param {Date} dateEnd - End date of the event
-   * @param {number} count - Number of available event slots
-   * @returns {boolean} - `true` if the operation was successful, `false` otherwise
-   */
-  private async addEvent(
-    eventId: number,
-    networkId: NetworkIdentifier,
-    ownerAddress: string,
-    title: string,
-    description: string,
-    location: string,
-    tokenCount: number,
-    uri: string,
-    dateStart: Date,
-    dateEnd: Date,
-    isManaged: boolean
-  ) {
-    const [owner, created] = await orm.User.findOrCreate({
-      where: { walletAddress: ownerAddress },
-    });
-    const event = await owner.createEvent({
-      id: eventId,
-      networkId: networkId,
-      title: title,
-      description: description,
-      location: location,
-      tokenCount: tokenCount,
-      uri: uri,
-      dateStart: dateStart,
-      dateEnd: dateEnd,
-      isManaged: isManaged,
-    });
-    return event;
-  }
-
-  /**
-   * Adds a minted NFT to an event in the database
-   * @param issuerAddress - The address of the NFT issuer's wallet
-   * @param eventId - The ID of the event
-   * @param tokenId - The identifier of the NFT (hash)
-   * @returns true if successful
-   */
-  private async addNFT(
-    issuerAddress: string,
-    eventId: number,
-    tokenId: string
-  ): Promise<boolean> {
-    try {
-      const event = await orm.Event.findOne({
-        where: { id: eventId },
-        rejectOnEmpty: true,
-      });
-      const [user, created] = await orm.User.findOrCreate({
-        where: { walletAddress: issuerAddress },
-      });
-      await event.createNft({
-        id: tokenId,
-        issuerWalletAddress: user.walletAddress,
-      });
-      return true;
-    } catch (error) {
-      console.log(error);
-    }
-    return false;
   }
 
   /**
@@ -414,9 +343,9 @@ export class Attendify {
 
   /**
    * Check if a particular NFT sell offer exists
-   * @param networkId XRP network identifier
-   * @param tokenId NFT token ID
-   * @param offerIndex NFT token sell offer index
+   * @param networkId - XRP network identifier
+   * @param tokenId - NFT token ID
+   * @param offerIndex - NFT token sell offer index
    * @returns true, if sell offer exists
    */
   private async checkSellOffer(
@@ -506,163 +435,174 @@ export class Attendify {
   }
 
   /**
-   * Retrieves a list of all tickets owned by a particular address
-   * @param {string} walletAddress - The wallet address to check
-   * @param {object} client - The XRPL client to use for the request
-   * @returns {object[]} - An array of tickets owned by the given address. If no tickets are found, returns an empty array
+   * Prepare ledger Ticket objects for NFT batch minting
+   * @param networkId - network identifier
+   * @param target - number of tickets that should be set up
+   * @returns an array of at least `target` ticket sequence numbers
    */
-  async getAccountTickets(walletAddress: string, client: any) {
-    let res = await client.request({
-      command: "account_objects",
-      account: walletAddress,
-      type: "ticket",
-    });
-    const resTickets = res.result.account_objects;
-    while (true) {
-      console.log("marker, ", res["result"]["marker"]);
-      if (res["result"]["marker"] === undefined) {
-        return resTickets;
+  private async prepareTickets(
+    networkId: NetworkIdentifier,
+    target: number
+  ): Promise<number[]> {
+    console.debug(`Preparing ${target} tickets`);
+    target = Math.floor(target);
+    if (target > 250) {
+      throw new AttendifyError("An account can at most have 250 tickets");
+    }
+
+    const [client, wallet] = this.getNetworkConfig(networkId);
+    await client.connect();
+    try {
+      // find all existing tickets
+      const tickets: LedgerEntry.Ticket[] = [];
+      let res: AccountObjectsResponse | undefined = undefined;
+      do {
+        res = await client.request({
+          command: "account_objects",
+          account: wallet.classicAddress,
+          type: "ticket",
+          limit: 10, // TODO
+          marker: res ? res.result.marker : undefined,
+        });
+        tickets.push(...(res.result.account_objects as LedgerEntry.Ticket[]));
+      } while (res.result.marker);
+      console.debug(`Found ${tickets.length} existing tickets`);
+
+      // determine the number of new tickets needed
+      const ticketSequences = tickets.map((t) => t.TicketSequence);
+      const ticketCount = target - ticketSequences.length;
+      if (ticketCount <= 0) {
+        return ticketSequences;
       }
-      res = await client.request({
-        method: "account_objects",
-        account: walletAddress,
-        type: "ticket",
-        marker: res["result"]["marker"],
+
+      // prepare to create additional tickets
+      const balance = parseFloat(await client.getXrpBalance(wallet.address));
+
+      const state = await client.request({
+        command: "server_info",
       });
-      console.log(res.result.account_objects.length);
-      return resTickets.concat(res.result.account_objects);
+      const reserve =
+        state.result.info.validated_ledger?.reserve_base_xrp ??
+        DEFAULT_TICKET_RESERVE;
+
+      if (ticketCount > Math.floor(balance - 1 / reserve)) {
+        throw new AttendifyError(
+          "Insufficient balance to cover owner reserves"
+        );
+      }
+
+      // create new tickets
+      console.debug(`Creating ${ticketCount} new tickets`);
+      const tx = await client.submitAndWait(
+        {
+          TransactionType: "TicketCreate",
+          Account: wallet.address,
+          TicketCount: ticketCount,
+        },
+        {
+          wallet: wallet,
+        }
+      );
+
+      // extract new ticket sequences
+      (tx.result.meta as TransactionMetadata).AffectedNodes.forEach((node) => {
+        const type = Object.keys(node)[0];
+        if (type === "CreatedNode") {
+          const n = (node as CreatedNode).CreatedNode;
+          if (n.LedgerEntryType === "Ticket") {
+            ticketSequences.push(n.NewFields.TicketSequence as number);
+          }
+        }
+      });
+
+      return ticketSequences;
+    } finally {
+      await client.disconnect();
     }
   }
 
   /**
-   * Mints NFTs for created event
-   * @param networkId - network identifier, e.g. mainnet
-   * @param walletAddress - Account of user requesting creation of event
-   * @param metadata - event information
+   * Create a new event and premint NFTs
+   * @param networkId - network identifier
+   * @param walletAddress - event owner wallet address
+   * @param metadata - event information/details
    * @param uri - IPFS url with metadata for NFT
    * @param isManaged - event signup permissions
-   * @returns New event id
+   * @returns new event id
    */
-  async batchMint(
+  async createEvent(
     networkId: NetworkIdentifier,
     walletAddress: string,
     metadata: Metadata,
     uri: string,
     isManaged: boolean
   ) {
+    if (!(await this.checkIfAccountExists(networkId, walletAddress))) {
+      throw new AttendifyError("Unable to find account on XRPL");
+    }
+
+    const owner = await orm.User.findOne({
+      where: { walletAddress: walletAddress },
+    });
+    if (!owner) {
+      throw new AttendifyError("Unable to find user");
+    }
+    
     const eventId = this.nextEventId;
+    const tokenCount = metadata.tokenCount;
+
+    console.debug(`Batch minting ${tokenCount} NFTs`);
+    const ticketSequences = await this.prepareTickets(networkId, tokenCount);
 
     const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
     try {
-      if ((await this.checkIfAccountExists(networkId, walletAddress)) == false)
-        throw new Error(`Account from request was not found om XRPL`);
-
-      const nftokenCount = metadata.tokenCount;
-      let remainingTokensBeforeTicketing = nftokenCount;
-      for (let currentTickets; remainingTokensBeforeTicketing != 0; ) {
-        let maxTickets =
-          250 -
-          (await this.getAccountTickets(wallet.address, client)).length;
-        console.log("Max tickets", maxTickets);
-        if (maxTickets == 0)
-          throw new Error(
-            `The minter has maximum allowed number of tickets at the moment. Please try again later, remove tickets that are not needed or use different minter account.`
-          );
-        const balanceForTickets = Math.floor(
-          (parseFloat(await client.getXrpBalance(wallet.address)) - 1) / 2
-        );
-        if (balanceForTickets < maxTickets) {
-          maxTickets = balanceForTickets;
-        }
-        if (remainingTokensBeforeTicketing > maxTickets) {
-          currentTickets = maxTickets;
-        } else {
-          currentTickets = remainingTokensBeforeTicketing;
-        }
-        // Get account information, particularly the Sequence number.
-        const account_info = await client.request({
-          command: "account_info",
-          account: wallet.address,
-        });
-        const my_sequence = account_info.result.account_data.Sequence;
-        // Create the transaction hash.
-        const ticketTransaction = await client.autofill({
-          TransactionType: "TicketCreate",
-          Account: wallet.address,
-          TicketCount: currentTickets,
-          Sequence: my_sequence,
-        });
-        // Sign the transaction.
-        const signedTransaction = wallet.sign(ticketTransaction);
-        // Submit the transaction and wait for the result.
-        const tx = await client.submitAndWait(signedTransaction.tx_blob);
-        const resTickets = await this.getAccountTickets(
-          wallet.address,
-          client
-        );
-        // Populate the tickets array variable.
-        const tickets: any[] = [];
-        for (let i = 0; i < currentTickets; i++) {
-          //console.log({ index: i, res: resTickets[i] });
-          tickets[i] = resTickets[i].TicketSequence;
-        }
-        // Mint NFTokens
-        const txHashes = [];
-        for (let i = 0; i < currentTickets; i++) {
-          console.log(
-            "minting ",
-            i + 1 + (nftokenCount - remainingTokensBeforeTicketing),
-            "/",
-            nftokenCount,
-            " NFTs"
-          );
-          const transactionBlob: NFTokenMint = {
+      // batch mint NFTs
+      const txHashes: Array<string | undefined> = [];
+      for (let i = 0; i < tokenCount; ++i) {
+        console.debug(`Minting NFT ${i + 1}/${tokenCount}`);
+        const tx = await client.submit(
+          {
             TransactionType: "NFTokenMint",
             Account: wallet.classicAddress,
             URI: convertStringToHex(uri),
-            Flags: NFTokenMintFlags.tfTransferable,
-            /*{
-              tfBurnable: true,
-              tfTransferable: true,
-            },*/
+            Flags:
+              NFTokenMintFlags.tfBurnable | NFTokenMintFlags.tfTransferable,
             TransferFee: 0,
             Sequence: 0,
-            TicketSequence: tickets[i],
+            TicketSequence: ticketSequences[i],
             NFTokenTaxon: eventId,
-          };
-          // Submit signed blob.
-          const tx = await client.submit(transactionBlob, {
+          },
+          {
             wallet: wallet,
-          });
-          txHashes.push(tx.result.tx_json.hash);
-        }
-        remainingTokensBeforeTicketing -= currentTickets;
+          }
+        );
+        txHashes.push(tx.result.tx_json.hash);
       }
-      // TODO ensure all transactions succeeded
-      // TODO add NFTs to database
 
-      client.disconnect();
+      // TODO ensure all transactions succeeded before creating db entries
 
-      await this.addEvent(
-        eventId,
-        networkId,
-        walletAddress,
-        metadata.title,
-        metadata.description,
-        metadata.location,
-        metadata.tokenCount,
-        uri,
-        metadata.dateStart,
-        metadata.dateEnd,
-        isManaged
-      );
+      const event = await owner.createEvent({
+        id: eventId,
+        networkId: networkId,
+        title: metadata.title,
+        description: metadata.description,
+        location: metadata.location,
+        tokenCount: tokenCount,
+        uri: uri,
+        dateStart: metadata.dateStart,
+        dateEnd: metadata.dateEnd,
+        isManaged: isManaged,
+      });
+
+      // increment next event id
       this.nextEventId++;
 
-      return eventId;
-    } catch (error) {
-      console.error(error);
-      throw error;
+      // TODO add NFTs to database
+
+      return event.id;
+    } finally {
+      client.disconnect();
     }
   }
 
