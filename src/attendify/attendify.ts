@@ -24,9 +24,7 @@ import { waitForFinalTransactionOutcome } from "./utils";
 const DEFAULT_TICKET_RESERVE = 2; // XRP
 
 /**
- * Attendify is API library for proof of attendance infrastructure on XRPL
- * It allows for creation of new claim events, checking whether claim is possible,
- * claiming, verifying NFT ownership, and fetching list of participants for a particular event
+ * Attendify is an utility library for the Proof of Attendance infrastructure on the XRPL.
  */
 export class Attendify {
   private nextEventId: number;
@@ -89,7 +87,8 @@ export class Attendify {
   }
 
   /**
-   * Check if an account exists on the XRPL
+   * Check if an account exists on a particular network
+   * @param networkId - network identifier
    * @param walletAddress - account wallet address
    * @returns  true, if the operation was successful
    */
@@ -168,10 +167,11 @@ export class Attendify {
   }
 
   /**
-   * Adds a participant to an existing event
-   * @param eventId - The ID of the event
-   * @param walletAddress - The address of the participant's wallet
-   * @param createOffer - Create an NFT sell offer
+   * Add a single participant to an existing event
+   * @param eventId - event identifier
+   * @param walletAddress - wallet address of the new participant
+   * @param createOffer - immediately create an NFT sell offer
+   * @param checkIsManaged - validate whether the event is managed, restrict access accordingly
    */
   async addParticipant(
     eventId: number,
@@ -247,18 +247,18 @@ export class Attendify {
   }
 
   /**
-   * Adds several participants to an existing event
-   * @param eventId - The ID of the event
-   * @param walletAddress - requesting wallet address
-   * @param attendeeWalletAddresses - The wallet addresses of the participants
-   * @param createOffer - Create an NFT sell offer
+   * Add several participants to an existing event
+   * @param eventId - event identifier
+   * @param walletAddress - event owner wallet address
+   * @param attendeeWalletAddresses - list of wallet addresses of new participants
+   * @param createOffer - immediately create an NFT sell offer
    */
   async addParticipants(
     eventId: number,
     walletAddress: string,
     attendeeWalletAddresses: string[],
     createOffer: boolean
-  ) {
+  ): Promise<void> {
     // check available spots
     const event = await orm.Event.findOne({
       where: { id: eventId },
@@ -282,10 +282,10 @@ export class Attendify {
   }
 
   /**
-   * Check if a particular NFT sell offer exists
-   * @param networkId - XRP network identifier
-   * @param tokenId - NFT token ID
-   * @param offerIndex - NFT token sell offer index
+   * Check if an NFT sell offer exists on chain
+   * @param networkId - network identifier
+   * @param tokenId - NFT identifier
+   * @param offerIndex - NFT sell offer index
    * @returns true, if sell offer exists
    */
   private async checkSellOffer(
@@ -317,11 +317,10 @@ export class Attendify {
   }
 
   /**
-   * Finds an existing NFT sell offer or creates a new one for the given event claim
-   * The offer has to be accepted by the buyer once it was returned
-   * @param walletAddress - wallet address of user trying to claim NFT
-   * @param eventId - The event identifier
-   * @returns claim object
+   * Fetch an NFT offer for a specific event from the database
+   * @param walletAddress - request wallet address
+   * @param eventId - event identifier
+   * @returns offer json object
    */
   async getClaim(walletAddress: string, eventId: number): Promise<any> {
     // query claim
@@ -378,7 +377,7 @@ export class Attendify {
    * Prepare ledger Ticket objects for NFT batch minting
    * @param networkId - network identifier
    * @param target - number of tickets that should be set up
-   * @returns an array of at least `target` ticket sequence numbers
+   * @returns array of at least `target` ticket sequence numbers
    */
   private async prepareTickets(
     networkId: NetworkIdentifier,
@@ -418,6 +417,7 @@ export class Attendify {
       // prepare to create additional tickets
       const balance = parseFloat(await client.getXrpBalance(wallet.address));
 
+      // TODO consider caching the result
       const state = await client.request({
         command: "server_info",
       });
@@ -463,11 +463,11 @@ export class Attendify {
   }
 
   /**
-   * Create a new event and premint NFTs
+   * Create a new event and pre-mint NFTs
    * @param networkId - network identifier
    * @param walletAddress - event owner wallet address
    * @param metadata - event information/details
-   * @param uri - IPFS url with metadata for NFT
+   * @param uri - IPFS url to metadata file for NFTs
    * @param isManaged - event signup permissions
    * @returns new event id
    */
@@ -477,7 +477,7 @@ export class Attendify {
     metadata: Metadata,
     uri: string,
     isManaged: boolean
-  ) {
+  ): Promise<number> {
     if (!(await this.checkAccountExists(networkId, walletAddress))) {
       throw new AttendifyError("Unable to find account on XRPL");
     }
@@ -580,10 +580,10 @@ export class Attendify {
   }
 
   /**
-   * Fetch a list of public events from the database
-   * @param {number} limit - maximum number of returned results
-   * @param {boolean} includeAttendees - include list of attendees for each event
-   * @returns {object} result - An object with a list of events
+   * Fetch public events from the database
+   * @param networkId - network identifier
+   * @param limit - maximum number of returned results
+   * @returns list of event json objects
    */
   async getEventsPublic(
     networkId: NetworkIdentifier,
@@ -602,6 +602,14 @@ export class Attendify {
     return events.map((event) => event.toJSON());
   }
 
+  /**
+   * Fetch user owned events from the database
+   * @param networkId - network identifier
+   * @param walletAddress - wallet address of the user
+   * @param limit - maximum number of returned results
+   * @param includeAttendees - optionally include event attendees information
+   * @returns list of event json objects
+   */
   async getEventsOwned(
     networkId: NetworkIdentifier,
     walletAddress: string,
@@ -632,6 +640,13 @@ export class Attendify {
     return events.map((event) => event.toJSON());
   }
 
+  /**
+   * Fetch NFT offers associated with a user from the database
+   * @param eventId - event identifier
+   * @param walletAddress - wallet address of the user
+   * @param limit - maximum number of returned results
+   * @returns list of offer json objects (including associated event info)
+   */
   async getOffers(
     networkId: NetworkIdentifier,
     walletAddress: string,
@@ -665,9 +680,9 @@ export class Attendify {
 
   /**
    * Fetch a specific event from the database
-   * @param eventId - ID of the event
+   * @param eventId - event identifier
    * @param walletAddress - optional request wallet address to filter results depending on access level
-   * @returns a event json object
+   * @returns event json object
    */
   async getEvent(
     eventId: number,
@@ -700,8 +715,8 @@ export class Attendify {
   /**
    * Fetch a specific user from the database
    * @param walletAddress - wallet address of the user
-   * @param includeEvents - include list of events the user is attending
-   * @returns - A user json object
+   * @param includeEvents - include a list of events the user is attending
+   * @returns - user json object
    */
   async getUser(
     walletAddress: string,
@@ -744,7 +759,6 @@ export class Attendify {
    * @param firstName - optional first name
    * @param lastName - optional last name
    * @param email - optional email address
-   * @returns nothing
    */
   async updateUser(
     walletAddress: string,
