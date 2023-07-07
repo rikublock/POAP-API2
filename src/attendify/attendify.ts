@@ -4,17 +4,14 @@ import {
   convertStringToHex,
   isValidSecret,
   LedgerEntry,
-  NFTokenCreateOffer,
   NFTokenCreateOfferFlags,
   NFTokenMint,
   NFTokenMintFlags,
   RippledError,
   TransactionMetadata,
   Wallet,
-  TxResponse,
 } from "xrpl";
 import type { CreatedNode } from "xrpl/dist/npm/models/transactions/metadata";
-import type { NFTOffer } from "xrpl/dist/npm/models/common";
 
 import { AttendifyError } from "./error";
 import { db, orm } from "./models";
@@ -99,6 +96,7 @@ export class Attendify {
     const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
     try {
+      console.debug(`Checking existence of account '${walletAddress}'`);
       await client.request({
         command: "account_info",
         account: walletAddress,
@@ -117,53 +115,44 @@ export class Attendify {
   }
 
   /**
-   * Creates a sell offer for NFT from selected event
-   * The offer has to be accepted by the buyer once it was returned
-   * * In current design checks to see whether or not there are still any NFTs
-   * * to claim are done outside of this class in related API route
-   * @ToDo Whitelist system to only allow claiming from certain adresses
-   * @ToDo Deadline system where NFTs can only be claimed before the event ends
-   * @ToDo Return previously created offer for user that's already event participant
-   * @param {string} buyer - wallet address of user trying to claim NFT
-   * @param {string} tokenId - ID for NFT that should be claimed
-   * @returns {object} - The metadata of the sell offer for a given NFT from selected event
-   * @throws {Error} - If any of the required parameters are missing or if there is an issue creating the sell offer
+   * Create a sell offer for an NFT
+   * @param networkId - network identifier
+   * @param walletAddress - recipient wallet address (offer can only be accepted by this account)
+   * @param tokenId - account wallet address
+   * @returns sell offer index
    */
-  private async createSellOffer(
+  async createSellOffer(
     networkId: NetworkIdentifier,
     walletAddress: string,
     tokenId: string
-  ) {
+  ): Promise<string> {
     if (!(await this.checkAccountExists(networkId, walletAddress))) {
-      throw new AttendifyError("Account from not found on XRPL");
+      throw new AttendifyError("Unable to find account on the XRPL");
     }
+
     const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
-    // Preparing transaction data
-    const transactionBlob: NFTokenCreateOffer = {
-      TransactionType: "NFTokenCreateOffer",
-      Account: wallet.classicAddress,
-      NFTokenID: tokenId,
-      Amount: "0",
-      Flags: NFTokenCreateOfferFlags.tfSellNFToken,
-      Destination: walletAddress,
-    };
-    // Submitting transaction to XRPL
-    const tx = await client.submitAndWait(transactionBlob, {
-      wallet: wallet,
-    });
-    console.log("tx create offer", tx);
-    // TODO is it really necessary to do that ? Cant we get the offer index elsewhere, from tx?
-    // TODO this can throw, if there are no offers
-    const nftSellOffers = await client.request({
-      command: "nft_sell_offers",
-      nft_id: tokenId,
-    });
-    client.disconnect();
-    // Getting details of sell offer for buyer wallet address
-    return nftSellOffers.result.offers.find((obj: any) => {
-      return obj.destination === walletAddress;
-    });
+    try {
+      console.debug(`Creating NFT sell offer for '${tokenId}'`);
+      const tx = await client.submitAndWait(
+        {
+          TransactionType: "NFTokenCreateOffer",
+          Account: wallet.classicAddress,
+          NFTokenID: tokenId,
+          Amount: "0",
+          Flags: NFTokenCreateOfferFlags.tfSellNFToken,
+          Destination: walletAddress,
+        },
+        {
+          failHard: true,
+          wallet: wallet,
+        }
+      );
+
+      return (tx.result.meta as any).offer_id as string;
+    } finally {
+      client.disconnect();
+    }
   }
 
   /**
@@ -222,16 +211,13 @@ export class Attendify {
       throw new AttendifyError("No more available slots");
     }
 
-    let offer: NFTOffer | undefined;
+    let offerIndex: string | undefined = undefined;
     if (createOffer) {
-      offer = await this.createSellOffer(
+      offerIndex = await this.createSellOffer(
         event.networkId,
         walletAddress,
         nft.id
       );
-      if (!offer) {
-        throw new AttendifyError("Unable to create sell offer");
-      }
     }
 
     // add the participant
@@ -239,7 +225,7 @@ export class Attendify {
 
     const claim = await user.createClaim({
       tokenId: nft.id,
-      offerIndex: offer ? offer.nft_offer_index : null,
+      offerIndex: offerIndex ?? null,
       claimed: false,
     });
 
@@ -288,7 +274,7 @@ export class Attendify {
    * @param offerIndex - NFT sell offer index
    * @returns true, if sell offer exists
    */
-  private async checkSellOffer(
+  async checkSellOffer(
     networkId: NetworkIdentifier,
     tokenId: string,
     offerIndex: string
@@ -296,6 +282,7 @@ export class Attendify {
     const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
     try {
+      console.debug(`Checking NFT sell offer '${offerIndex}'`);
       // Note: this throws, if there are no offers
       const offerInfo = await client.request({
         command: "nft_sell_offers",
@@ -357,15 +344,11 @@ export class Attendify {
         }
       } else {
         // sell offer was previously not created on chain, do it now
-        const offer = await this.createSellOffer(
+        claim.offerIndex = await this.createSellOffer(
           networkId,
           walletAddress,
           claim.token.id
         );
-        if (!offer) {
-          throw new AttendifyError("Unable to create sell offer");
-        }
-        claim.offerIndex = offer.nft_offer_index;
         await claim.save();
       }
     }
@@ -379,7 +362,7 @@ export class Attendify {
    * @param target - number of tickets that should be set up
    * @returns array of at least `target` ticket sequence numbers
    */
-  private async prepareTickets(
+  async prepareTickets(
     networkId: NetworkIdentifier,
     target: number
   ): Promise<number[]> {
@@ -479,7 +462,7 @@ export class Attendify {
     isManaged: boolean
   ): Promise<number> {
     if (!(await this.checkAccountExists(networkId, walletAddress))) {
-      throw new AttendifyError("Unable to find account on XRPL");
+      throw new AttendifyError("Unable to find account on the XRPL");
     }
 
     const owner = await orm.User.findOne({
