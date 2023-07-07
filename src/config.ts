@@ -56,7 +56,7 @@ const DEFAULT: Config = {
       },
       {
         networkId: NetworkIdentifier.AMM_DEVNET,
-        url: process.env.AMM_DEVNET_URL!,
+        url: process.env.AMM_DEVNET_URL as string,
         vaultWalletSeed: process.env.AMM_DEVNET_VAULT_WALLET_SEED as string,
       },
     ],
