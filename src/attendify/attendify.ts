@@ -666,33 +666,33 @@ export class Attendify {
   /**
    * Fetch a specific event from the database
    * @param eventId - ID of the event
-   * @param walletAddress - optional request wallet address, restrict access to owner and attendee, if event is managed
-   * @returns {object} result - An object with a list of events
+   * @param walletAddress - optional request wallet address to filter results depending on access level
+   * @returns a event json object
    */
   async getEvent(
     eventId: number,
-    walletAddress?: string // TODO filter results depending on access level
+    walletAddress?: string
   ): Promise<any | undefined> {
-    const includeAttendees = true; // TODO
     const event = await orm.Event.findOne({
       where: { id: eventId },
-      // attributes: {
-      //   exclude: ["date", "ownerWalletAddress"],
-      // },
       include: [
         orm.Event.associations.owner,
-        ...(includeAttendees
-          ? [
-              {
-                association: orm.Event.associations.attendees,
-                through: { attributes: [] }, // exclude: 'Participation'
-              },
-            ]
-          : []),
+        {
+          association: orm.Event.associations.attendees,
+          through: { attributes: [] }, // exclude: 'Participation'
+        },
       ],
     });
 
-    // TODO if managed, restrict access
+    // if managed, restrict access to owner or attendee
+    if (event?.isManaged) {
+      if (
+        event.ownerWalletAddress !== walletAddress &&
+        !(walletAddress && (await event.hasAttendee(walletAddress)))
+      ) {
+        return undefined;
+      }
+    }
 
     return event?.toJSON();
   }
@@ -722,6 +722,7 @@ export class Attendify {
       ],
     };
 
+    // TODO this never returns associated events
     if (allowCreation) {
       const [user, created] = await orm.User.findOrCreate({
         ...options,
