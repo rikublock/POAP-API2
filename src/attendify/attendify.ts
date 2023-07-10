@@ -490,8 +490,7 @@ export class Attendify {
             TransactionType: "NFTokenMint",
             Account: wallet.classicAddress,
             URI: convertStringToHex(uri),
-            Flags:
-              NFTokenMintFlags.tfBurnable | NFTokenMintFlags.tfTransferable,
+            Flags: NFTokenMintFlags.tfBurnable,
             TransferFee: 0,
             Sequence: 0,
             TicketSequence: ticketSequences[i],
