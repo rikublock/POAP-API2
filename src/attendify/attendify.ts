@@ -1,4 +1,5 @@
 import {
+  AccountNFTsResponse,
   AccountObjectsResponse,
   Client,
   convertStringToHex,
@@ -304,6 +305,49 @@ export class Attendify {
   }
 
   /**
+   * Find all NFTs owned by a particular account
+   * @param networkId - network identifier
+   * @param walletAddress - request wallet address
+   * @param taxon - optional filter
+   * @returns array of token identifier
+   */
+  async fetchNFTs(
+    networkId: NetworkIdentifier,
+    walletAddress: string,
+    taxon?: number
+  ): Promise<string[]> {
+    console.debug(`Fetching NFTs for account ${walletAddress}`);
+
+    const [client, wallet] = this.getNetworkConfig(networkId);
+    await client.connect();
+    try {
+      // find all existing NFTs
+      const tokenIds: string[] = [];
+      let res: AccountNFTsResponse | undefined = undefined;
+      do {
+        res = await client.request({
+          command: "account_nfts",
+          account: walletAddress,
+          limit: 400,
+          marker: res ? res.result.marker : undefined,
+        });
+
+        // filter results, extract id
+        tokenIds.push(
+          ...res.result.account_nfts
+            .filter((x) => (taxon ? x.NFTokenTaxon === taxon : true))
+            .map((x) => x.NFTokenID)
+        );
+      } while (res.result.marker);
+      console.debug(`Found ${tokenIds.length} NFT(s) (filter: ${taxon})`);
+
+      return tokenIds;
+    } finally {
+      await client.disconnect();
+    }
+  }
+
+  /**
    * Fetch an NFT offer for a specific event from the database
    * @param walletAddress - request wallet address
    * @param eventId - event identifier
@@ -383,7 +427,7 @@ export class Attendify {
           command: "account_objects",
           account: wallet.classicAddress,
           type: "ticket",
-          limit: 10, // TODO
+          limit: 400,
           marker: res ? res.result.marker : undefined,
         });
         tickets.push(...(res.result.account_objects as LedgerEntry.Ticket[]));
