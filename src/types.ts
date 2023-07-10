@@ -11,6 +11,12 @@ export enum WalletType {
   GEM_WALLET,
 }
 
+export enum EventStatus {
+  ACTIVE,
+  CLOSED,
+  CANCELED,
+}
+
 export type NetworkConfig = {
   networkId: NetworkIdentifier;
   url: string;

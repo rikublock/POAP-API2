@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 import config from "../config";
-import { NetworkIdentifier } from "../types";
+import { EventStatus, NetworkIdentifier } from "../types";
 import { db, User, Event } from "./models";
 
 /* TODO 
@@ -35,6 +35,7 @@ describe("Test Models", () => {
         await User.create({
           walletAddress: `0x${i}`,
           isOrganizer: true,
+          slots: 50,
         })
       );
     }
@@ -44,6 +45,7 @@ describe("Test Models", () => {
     for (let i = 0; i < 3; ++i) {
       events.push(
         await users[0].createEvent({
+          status: EventStatus.ACTIVE,
           title: `title ${i}`,
           description: "description",
           location: "location",
@@ -62,12 +64,14 @@ describe("Test Models", () => {
     const user = await User.create({
       walletAddress: "rBTwLga3i2gz3doX6Gva3MgEV8ZCD8jjah",
       isOrganizer: true,
+      slots: 50,
     });
   });
 
   test("create event", async () => {
     const user = users[1];
     const event = await Event.create({
+      status: EventStatus.ACTIVE,
       title: "title",
       description: "description",
       location: "location",
@@ -98,6 +102,7 @@ describe("Test Models", () => {
   test("create user event", async () => {
     const user = users[1];
     const event = await user.createEvent({
+      status: EventStatus.ACTIVE,
       title: "title",
       description: "description",
       location: "location",

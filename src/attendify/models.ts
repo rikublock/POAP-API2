@@ -18,7 +18,7 @@ import {
   Sequelize,
 } from "sequelize";
 
-import { NetworkIdentifier } from "../types";
+import { EventStatus, NetworkIdentifier } from "../types";
 import config from "../config";
 
 let sequelize: Sequelize;
@@ -46,6 +46,7 @@ export class User extends Model<
   declare lastName: string | null;
   declare email: string | null;
   declare isOrganizer: boolean;
+  declare slots: number;
 
   // Note: The expression 'event' is used for events owned (created)
   // by the user and 'attendance' for events the user is participating in.
@@ -105,6 +106,10 @@ User.init(
       type: DataTypes.BOOLEAN,
       allowNull: false,
     },
+    slots: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
   },
   {
     sequelize,
@@ -117,6 +122,7 @@ export class Event extends Model<
   InferCreationAttributes<Event, { omit: "attendees" | "nfts" }>
 > {
   declare id: CreationOptional<number>;
+  declare status: EventStatus;
   declare networkId: NetworkIdentifier;
   declare title: string;
   declare description: string;
@@ -157,6 +163,10 @@ Event.init(
       type: DataTypes.INTEGER,
       autoIncrement: true,
       primaryKey: true,
+      allowNull: false,
+    },
+    status: {
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
     networkId: {
