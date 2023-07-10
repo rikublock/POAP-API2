@@ -3,6 +3,7 @@ import {
   AccountObjectsResponse,
   Client,
   convertStringToHex,
+  dropsToXrp,
   isValidSecret,
   LedgerEntry,
   NFTokenCreateOfferFlags,
@@ -18,8 +19,6 @@ import { AttendifyError } from "./error";
 import { db, orm } from "./models";
 import { Metadata, NetworkIdentifier, NetworkConfig } from "../types";
 import { waitForFinalTransactionOutcome } from "./utils";
-
-const DEFAULT_TICKET_RESERVE = 2; // XRP
 
 /**
  * Attendify is an utility library for the Proof of Attendance infrastructure on the XRPL.
@@ -73,7 +72,7 @@ export class Attendify {
    * @returns fresh wallet and client instance for a network
    */
   // TODO should cache the return values (manage connections)
-  private getNetworkConfig(networkId: NetworkIdentifier): [Client, Wallet] {
+  getNetworkConfig(networkId: NetworkIdentifier): [Client, Wallet] {
     const config = this.networkConfigs.find((obj: NetworkConfig) => {
       return obj.networkId === networkId;
     });
@@ -348,6 +347,48 @@ export class Attendify {
   }
 
   /**
+   * Check if the vault account has enough balance to create N ledger objects
+   * @param networkId - network identifier
+   * @param count - number of new objects
+   * @returns true, if account has enough balance
+   */
+  async checkOwnerReserve(
+    networkId: NetworkIdentifier,
+    count: number
+  ): Promise<boolean> {
+    const [client, wallet] = this.getNetworkConfig(networkId);
+    await client.connect();
+    try {
+      // TODO consider caching the result
+      const state = await client.request({
+        command: "server_info",
+      });
+      const ledger = state.result.info.validated_ledger;
+      if (!ledger) {
+        throw new AttendifyError("Unable to fetch server info");
+      }
+
+      const info = await client.request({
+        command: "account_info",
+        account: wallet.classicAddress,
+      });
+
+      const balance = parseFloat(dropsToXrp(info.result.account_data.Balance));
+
+      // current account reserves
+      const reserve =
+        ledger.reserve_base_xrp +
+        ledger.reserve_inc_xrp * info.result.account_data.OwnerCount;
+
+      return (
+        count <= Math.floor(balance - reserve - 1 / ledger.reserve_inc_xrp)
+      );
+    } finally {
+      await client.disconnect();
+    }
+  }
+
+  /**
    * Fetch an NFT offer for a specific event from the database
    * @param walletAddress - request wallet address
    * @param eventId - event identifier
@@ -441,18 +482,7 @@ export class Attendify {
         return ticketSequences;
       }
 
-      // prepare to create additional tickets
-      const balance = parseFloat(await client.getXrpBalance(wallet.address));
-
-      // TODO consider caching the result
-      const state = await client.request({
-        command: "server_info",
-      });
-      const reserve =
-        state.result.info.validated_ledger?.reserve_base_xrp ??
-        DEFAULT_TICKET_RESERVE;
-
-      if (ticketCount > Math.floor(balance - 1 / reserve)) {
+      if (!this.checkOwnerReserve(networkId, ticketCount)) {
         throw new AttendifyError(
           "Insufficient balance to cover owner reserves"
         );
