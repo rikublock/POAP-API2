@@ -1,6 +1,5 @@
 export { Attendify } from "./attendify/attendify"
 export * from "./attendify/models"
-export * from "./attendify/utils"
 
 export * from "./server/auth"
 export * from "./server/error"

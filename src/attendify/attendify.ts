@@ -7,7 +7,6 @@ import {
   isValidSecret,
   LedgerEntry,
   NFTokenCreateOfferFlags,
-  NFTokenMint,
   NFTokenMintFlags,
   RippledError,
   TransactionMetadata,
@@ -23,7 +22,6 @@ import {
   NetworkConfig,
   EventStatus,
 } from "../types";
-import { waitForFinalTransactionOutcome } from "./utils";
 
 /**
  * Attendify is an utility library for the Proof of Attendance infrastructure on the XRPL.
@@ -554,57 +552,39 @@ export class Attendify {
 
     const eventId = this.nextEventId;
     const tokenCount = metadata.tokenCount;
-
-    console.debug(`Batch minting ${tokenCount} NFT(s)`);
+    
     const ticketSequences = await this.prepareTickets(networkId, tokenCount);
 
     const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
     try {
-      // batch mint NFTs
-      const txInfos: Array<{ hash: string; lastSequence: number }> = [];
+      // batch mint
+      console.debug(`Batch minting ${tokenCount} NFT(s)`);
+      const promises = [];
       for (let i = 0; i < tokenCount; ++i) {
         console.debug(`Minting NFT ${i + 1}/${tokenCount}`);
-        const response = await client.submit(
-          {
-            TransactionType: "NFTokenMint",
-            Account: wallet.classicAddress,
-            URI: convertStringToHex(uri),
-            Flags: NFTokenMintFlags.tfBurnable,
-            TransferFee: 0,
-            Sequence: 0,
-            TicketSequence: ticketSequences[i],
-            NFTokenTaxon: eventId,
-          },
-          {
-            failHard: true,
-            wallet: wallet,
-          }
+        promises.push(
+          client.submitAndWait(
+            {
+              TransactionType: "NFTokenMint",
+              Account: wallet.classicAddress,
+              URI: convertStringToHex(uri),
+              Flags: NFTokenMintFlags.tfBurnable,
+              TransferFee: 0,
+              Sequence: 0,
+              TicketSequence: ticketSequences[i],
+              NFTokenTaxon: eventId,
+            },
+            {
+              failHard: true,
+              wallet: wallet,
+            }
+          )
         );
-
-        const hash = response.result.tx_json.hash;
-        const lastSequence = response.result.tx_json.LastLedgerSequence;
-        if (!hash || !lastSequence) {
-          throw new AttendifyError("Failed to submit NFT mint transaction");
-        }
-        txInfos.push({
-          hash,
-          lastSequence,
-        });
       }
 
-      // verify transactions
-      console.debug("Verifying mint transaction(s)");
-      const tokenIds: string[] = [];
-      for (let i = 0; i < txInfos.length; ++i) {
-        console.debug(txInfos[i].hash);
-        const tx = await waitForFinalTransactionOutcome<NFTokenMint>(
-          client,
-          txInfos[i].hash,
-          txInfos[i].lastSequence
-        );
-        tokenIds.push((tx.result.meta as any).nftoken_id);
-      }
+      const txs = await Promise.all(promises);
+      const tokenIds = txs.map((tx) => (tx.result.meta as any).nftoken_id);
 
       if (tokenIds.length != tokenCount) {
         throw new AttendifyError("NFT mint verification failed");
