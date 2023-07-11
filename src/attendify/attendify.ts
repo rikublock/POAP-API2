@@ -13,6 +13,7 @@ import {
   Wallet,
 } from "xrpl";
 import type { CreatedNode } from "xrpl/dist/npm/models/transactions/metadata";
+import { Op } from "sequelize";
 
 import { AttendifyError } from "./error";
 import { db, orm } from "./models";
@@ -766,6 +767,31 @@ export class Attendify {
             ]
           : []),
       ],
+    });
+    return events.map((event) => event.toJSON());
+  }
+
+  /**
+   * Fetch active events that have ended
+   * @param networkId - network identifier
+   * @param walletAddress - optionally filter by owner wallet address
+   * @returns list of event json objects
+   */
+  async getEventsExpired(
+    networkId: NetworkIdentifier,
+    walletAddress?: string
+  ): Promise<any[]> {
+    const events = await orm.Event.findAll({
+      where: {
+        status: EventStatus.ACTIVE,
+        dateEnd: {
+          [Op.lt]: Date.now(),
+        },
+        ...(networkId !== NetworkIdentifier.UNKNOWN
+          ? { networkId: networkId }
+          : {}),
+        ...(walletAddress ? { ownerWalletAddress: walletAddress } : {}),
+      },
     });
     return events.map((event) => event.toJSON());
   }
