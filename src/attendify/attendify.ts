@@ -179,13 +179,16 @@ export class Attendify {
     if (!event) {
       throw new AttendifyError("Invalid event ID");
     }
+    if (event.status !== EventStatus.ACTIVE) {
+      throw new AttendifyError("Event is not active");
+    }
     if ((await event.countAttendees()) >= event.tokenCount) {
       throw new AttendifyError("Event already full");
     }
     if (await event.hasAttendee(walletAddress)) {
       throw new AttendifyError("User is already a participant");
     }
-    if (checkIsManaged && event.isManaged) {
+    if (checkIsManaged && event.isManaged && event.ownerWalletAddress !== walletAddress) {
       throw new AttendifyError("Not allowed to join private event");
     }
 
