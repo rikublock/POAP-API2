@@ -134,6 +134,10 @@ export class APIPostEventJoin {
   @IsInt()
   @Min(1)
   eventId: number;
+
+  @Expose()
+  @IsBoolean()
+  createOffer: boolean;
 }
 
 export class APIPostEventClaim {

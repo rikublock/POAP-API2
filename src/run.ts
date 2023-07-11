@@ -133,6 +133,7 @@ export async function main() {
    * Sign up for an event
    * @route POST /event/join
    * @param eventId - event identifier
+   * @param createOffer - immediately create an NFT sell offer
    * @returns offer json object
    */
   app.post(
@@ -166,7 +167,7 @@ export async function main() {
         const claim = await AttendifyLib.addParticipant(
           data.eventId,
           data.walletAddress,
-          true,
+          data.createOffer,
           true
         );
         res.json({
@@ -265,7 +266,7 @@ export async function main() {
           data.eventId,
           data.walletAddress,
           data.attendeeWalletAddresses,
-          true
+          false,
         );
         res.json({
           result: true,
