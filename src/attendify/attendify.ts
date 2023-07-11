@@ -552,7 +552,19 @@ export class Attendify {
 
     const eventId = this.nextEventId;
     const tokenCount = metadata.tokenCount;
-    
+
+    // check slot availability
+    const result = await orm.Event.findOne({
+      where: { status: EventStatus.ACTIVE, ownerWalletAddress: walletAddress },
+      attributes: [[db.fn("sum", db.col("tokenCount")), "slots"]],
+      raw: true,
+    });
+
+    const slots = (result as any)?.slots ?? 0;
+    if (slots + tokenCount > owner.slots) {
+      throw new AttendifyError("Not enough available event slots");
+    }
+
     const ticketSequences = await this.prepareTickets(networkId, tokenCount);
 
     const [client, wallet] = this.getNetworkConfig(networkId);
