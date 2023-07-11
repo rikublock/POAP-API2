@@ -5,6 +5,7 @@
   "author": "Riku Block",
   "scripts": {
     "start": "nodemon src/run.ts",
+    "start:daemon": "nodemon src/daemon.ts",
     "lint": "eslint -f unix \"src/**/*.{ts,tsx}\"",
     "test": "jest",
     "coverage": "jest --coverage",
