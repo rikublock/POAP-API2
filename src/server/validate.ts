@@ -283,6 +283,18 @@ export class APIPostUserUpdate {
   email: string | null;
 }
 
+export class APIGetUserSlots {
+  @Expose()
+  @IsXrpAddress()
+  walletAddress: string;
+
+  @Expose()
+  @Type(() => Number)
+  @IsEnum(NetworkIdentifier)
+  @NotEquals(NetworkIdentifier.UNKNOWN)
+  networkId: NetworkIdentifier;
+}
+
 export class APIPostAuthNonce {
   @Expose()
   @IsHexadecimal()

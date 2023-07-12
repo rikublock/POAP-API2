@@ -188,7 +188,11 @@ export class Attendify {
     if (await event.hasAttendee(walletAddress)) {
       throw new AttendifyError("User is already a participant");
     }
-    if (checkIsManaged && event.isManaged && event.ownerWalletAddress !== walletAddress) {
+    if (
+      checkIsManaged &&
+      event.isManaged &&
+      event.ownerWalletAddress !== walletAddress
+    ) {
       throw new AttendifyError("Not allowed to join private event");
     }
 
@@ -559,12 +563,16 @@ export class Attendify {
 
     // check slot availability
     const result = await orm.Event.findOne({
-      where: { status: EventStatus.ACTIVE, ownerWalletAddress: walletAddress },
+      where: {
+        networkId: networkId,
+        status: EventStatus.ACTIVE,
+        ownerWalletAddress: walletAddress,
+      },
       attributes: [[db.fn("sum", db.col("tokenCount")), "slots"]],
       raw: true,
     });
 
-    const slots = (result as any)?.slots ?? 0;
+    const slots = ((result as any)?.slots as number) ?? 0;
     if (slots + tokenCount > owner.slots) {
       throw new AttendifyError("Not enough available event slots");
     }
@@ -938,5 +946,38 @@ export class Attendify {
       email,
     });
     await user.save();
+  }
+
+  /**
+   * Fetch event slot information of a user
+   * @param networkId - network identifier
+   * @param walletAddress - wallet address of the user
+   * @returns - currently used and max available slots
+   */
+  async getSlots(
+    networkId: NetworkIdentifier,
+    walletAddress: string
+  ): Promise<[number, number]> {
+    const user = await orm.User.findOne({
+      where: { walletAddress: walletAddress },
+    });
+    if (!user) {
+      throw new AttendifyError("Unable to find user");
+    }
+
+    const result = await orm.Event.findOne({
+      where: {
+        ...(networkId !== NetworkIdentifier.UNKNOWN
+          ? { networkId: networkId }
+          : {}),
+        status: EventStatus.ACTIVE,
+        ownerWalletAddress: walletAddress,
+      },
+      attributes: [[db.fn("sum", db.col("tokenCount")), "slots"]],
+      raw: true,
+    });
+    const slots = ((result as any)?.slots as number) ?? 0;
+
+    return [slots, user.slots];
   }
 }
