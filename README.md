@@ -23,7 +23,7 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
   - configure JWT
     - `JWT_SECRET` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
 - run the app with `yarn start`
-
+- optionally run the clean up daemon with `yarn start:daemon`
 
 ## Notable Changes
 
@@ -48,6 +48,8 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
   - GET `/offers` - fetch a list of NFT offers
   - GET `/user/info` - fetch details about a user
   - POST `/user/update` - update user profile
+  - GET `/user/slots` - fetch event slot details of a user
+  - GET `/users` - fetch a list of all users on the platform
   - GET `/auth/heartbeat` - check if backend service is available 
   - POST `/auth/nonce` - request a login nonce
   - POST `/auth/login` - login, request jwt 
