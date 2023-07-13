@@ -614,6 +614,33 @@ export async function main() {
   );
 
   /**
+   * Request a list of all users on the platform
+   * @route GET /users
+   * @returns list of user wallet addresses
+   */
+  app.get(
+    "/users",
+    authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
+    guardMiddleware("organizer"),
+    async (req: JWTRequest, res: Response, next: NextFunction) => {
+      try {
+        const key = "_api_users";
+        let addresses = cache.get<string[]>(key);
+        if (!addresses) {
+          const result = await AttendifyLib.getUsers(NetworkIdentifier.UNKNOWN);
+          addresses = result.map((user) => user.walletAddress);
+          cache.set<string[]>(key, addresses, 120);
+        }
+        res.json({
+          result: addresses,
+        });
+      } catch (error) {
+        return next(error);
+      }
+    }
+  );
+
+  /**
    * Ping backend service
    * @route POST /auth/heartbeat
    * @returns true, if the operation was successful

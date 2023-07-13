@@ -980,4 +980,23 @@ export class Attendify {
 
     return [slots, user.slots];
   }
+
+  /**
+   * Fetch a list of all users
+   * @param networkId - network identifier
+   * @returns list of user json objects
+   */
+  async getUsers(networkId: NetworkIdentifier): Promise<any[]> {
+    const users = await orm.User.findAll({
+      order: [["walletAddress", "ASC"]],
+      where: {
+        walletAddress: {
+          [Op.notIn]: this.networkConfigs
+            .filter((c) => isValidSecret(c.vaultWalletSeed))
+            .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+        },
+      },
+    });
+    return users.map((user) => user.toJSON());
+  }
 }
