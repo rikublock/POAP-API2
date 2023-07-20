@@ -5,7 +5,7 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
 ## Getting Started
 - install dependencies with `yarn install`
 - rename `.env.example` to `.env`, update the values:
-  - configure networks (only use websocket URLs, default values generally work):
+  - configure networks (only use websocket URLs, preconfigured default values generally work):
     - `MAINNET_URL`
     - `TESTNET_URL`
     - `DEVNET_URL`
@@ -16,10 +16,11 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
     - `DEVNET_VAULT_WALLET_SEED` (create a funded wallet [here](https://xrpl.org/xrp-testnet-faucet.html))
     - `AMM_DEVNET_VAULT_WALLET_SEED` (create a funded wallet [here](https://xrpl.org/xrp-testnet-faucet.html))
   - configure IFPS provider (one is sufficient):
-    - `INFURA_ID` and `INFURA_SECRET` (create account [here](https://docs.infura.io/infura/getting-started))
-    - `WEB3_STORAGE_API_TOKEN` (login with github account, see [here](https://web3.storage/login/))
-  - configure XUMM App (needs to match the key embedded in the frontend App)
-    - `XUMM_API_KEY` and `XUMM_API_SECRET` (create account [here](https://apps.xumm.dev/), make sure to set the origin URIs, e.g. `http://localhost:3000`)
+    - `IPFS_INFURA_ID` and `IPFS_INFURA_SECRET` (create account [here](https://docs.infura.io/infura/getting-started))
+    - `IPFS_WEB3_STORAGE_API_TOKEN` (login with github account, see [here](https://web3.storage/login/))
+  - configure XUMM App (needs to match the key embedded in the front end app)
+    - `XUMM_API_KEY` and `XUMM_API_SECRET` (create account [here](https://apps.xumm.dev/))
+    - **Important:** Make sure to set the origin URIs, e.g. `http://localhost:3000` (URI the front end app is running on)
   - configure JWT
     - `JWT_SECRET` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
 - run the app with `yarn start`
