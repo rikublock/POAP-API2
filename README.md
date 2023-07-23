@@ -23,6 +23,8 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
     - **Important:** Make sure to set the origin URIs, e.g. `http://localhost:3000` (URI the front end app is running on)
   - configure JWT
     - `JWT_SECRET` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
+  - configure hashids
+    - `HASHID_SALT` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
 - run the app with `yarn start`
 - optionally run the clean up daemon with `yarn start:daemon`
 
@@ -44,6 +46,7 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
   - POST `/event/claim` - claim NFT for an event
   - POST `/event/invite` - add new participants to an event
   - GET `/event/info/:id` - fetch details about one event
+  - GET `/event/link/:id` - fetch a masked invitation link for an event
   - GET `/events/public` - fetch a list of public events
   - GET `/events/owned` - fetch a list of user owned events
   - GET `/offers` - fetch a list of NFT offers

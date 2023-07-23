@@ -9,6 +9,7 @@ import cors from "cors";
 import { validate } from "class-validator";
 import { plainToClass } from "class-transformer";
 import NodeCache from "node-cache";
+import Hashids from "hashids";
 
 import { Attendify } from "./attendify";
 import { postToIPFS } from "./server/ipfs";
@@ -27,6 +28,7 @@ import {
   APIPostEventInvite,
   APIPostEventJoin,
   APIGetUserSlots,
+  APIGetEventLink,
 } from "./server/validate";
 import { ServerError, errorHandler } from "./server/error";
 import config from "./config";
@@ -46,6 +48,8 @@ export async function main() {
   await AttendifyLib.init();
 
   const cache = new NodeCache({ stdTTL: 600 });
+
+  const hashids = new Hashids(config.server.hashidSalt, 24);
 
   // init server
   const app = express();
@@ -318,6 +322,58 @@ export async function main() {
         const result = await AttendifyLib.getEvent(data.id, data.walletAddress);
         res.json({
           result: result,
+        });
+      } catch (error) {
+        return next(next);
+      }
+    }
+  );
+
+  /**
+   * Request a masked event link
+   * @route GET /event/link/:id
+   * @returns masked event id
+   */
+  app.get(
+    "/event/link/:id",
+    authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
+    guardMiddleware("organizer"),
+    async (req: JWTRequest, res: Response, next: NextFunction) => {
+      try {
+        // verify request data
+        const data = plainToClass(
+          APIGetEventLink,
+          {
+            id: req.params.id,
+            walletAddress: (req.auth as JwtPayload)?.walletAddress,
+          },
+          {
+            strategy: "exposeAll",
+            excludeExtraneousValues: true,
+          }
+        );
+        const errors = await validate(data);
+        if (errors.length > 0) {
+          return next(
+            new ServerError(
+              HttpStatusCode.BadRequest,
+              "Data validation failed",
+              errors
+            )
+          );
+        }
+
+        const event = await AttendifyLib.getEvent(data.id, data.walletAddress);
+        if (!event) {
+          return next(new AttendifyError("Invalid event ID"));
+        }
+        if (event.ownerWalletAddress != data.walletAddress) {
+          return next(new AttendifyError("Only Owner can request link"));
+        }
+
+        const masked = hashids.encode(event.id);
+        res.json({
+          result: masked,
         });
       } catch (error) {
         return next(next);

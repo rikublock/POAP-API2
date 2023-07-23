@@ -185,6 +185,19 @@ export class APIGetEventInfo {
   walletAddress?: string;
 }
 
+export class APIGetEventLink {
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  id: number;
+
+  @Expose()
+  @IsOptional()
+  @IsXrpAddress()
+  walletAddress: string;
+}
+
 export class APIGetEventsPublic {
   @Expose()
   @Type(() => Number)
