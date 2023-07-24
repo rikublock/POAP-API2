@@ -64,6 +64,7 @@ export class Attendify {
           defaults: {
             walletAddress: wallet.classicAddress,
             isOrganizer: false,
+            isAdmin: false,
             slots: 0,
           },
         });
@@ -911,6 +912,7 @@ export class Attendify {
         defaults: {
           walletAddress: walletAddress,
           isOrganizer: true, // TODO change to false
+          isAdmin: true, // TODO change to false
           slots: 200, // TODO change to 0
         },
       });

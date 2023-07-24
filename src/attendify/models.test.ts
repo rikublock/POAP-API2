@@ -35,6 +35,7 @@ describe("Test Models", () => {
         await User.create({
           walletAddress: `0x${i}`,
           isOrganizer: true,
+          isAdmin: false,
           slots: 50,
         })
       );
@@ -64,6 +65,7 @@ describe("Test Models", () => {
     const user = await User.create({
       walletAddress: "rBTwLga3i2gz3doX6Gva3MgEV8ZCD8jjah",
       isOrganizer: true,
+      isAdmin: false,
       slots: 50,
     });
   });
