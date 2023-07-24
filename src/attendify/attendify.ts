@@ -624,6 +624,7 @@ export class Attendify {
         description: metadata.description,
         location: metadata.location,
         tokenCount: tokenCount,
+        imageUrl: metadata.imageUrl,
         uri: uri,
         dateStart: metadata.dateStart,
         dateEnd: metadata.dateEnd,

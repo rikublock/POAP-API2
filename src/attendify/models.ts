@@ -132,6 +132,7 @@ export class Event extends Model<
   declare title: string;
   declare description: string;
   declare location: string;
+  declare imageUrl: string;
   declare uri: string;
   declare tokenCount: number;
   declare dateStart: Date;
@@ -187,6 +188,10 @@ Event.init(
       allowNull: false,
     },
     location: {
+      type: DataTypes.STRING(256),
+      allowNull: false,
+    },
+    imageUrl: {
       type: DataTypes.STRING(256),
       allowNull: false,
     },
