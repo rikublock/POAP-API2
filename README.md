@@ -61,6 +61,18 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
 - support for alternative IPFS provider (web3.storage)
 - many more overall code improvements
 
+## Manage Admins
+
+Use the `yarn run console admin` script to add or remove the admin account flag in the database.
+
+Examples:
+```sh
+yarn run console admin --help
+yarn run console admin add r3drY2fHEEzFiU1EHpw2Qjpa2EHGs8cMHo
+yarn run console admin add r3drY2fHEEzFiU1EHpw2Qjpa2EHGs8cMHo true
+yarn run console admin remove r3drY2fHEEzFiU1EHpw2Qjpa2EHGs8cMHo
+```
+
 ## Documentation 
 
 Full API and module documentation is available [here](https://rikublock.github.io/POAP-API2/).
