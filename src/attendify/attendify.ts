@@ -106,6 +106,7 @@ export class Attendify {
       await client.request({
         command: "account_info",
         account: walletAddress,
+        ledger_index: "validated",
       });
       return true;
     } catch (err) {
@@ -300,6 +301,7 @@ export class Attendify {
       const offerInfo = await client.request({
         command: "nft_sell_offers",
         nft_id: tokenId,
+        ledger_index: "validated",
       });
       return !!offerInfo.result.offers.find((obj) => {
         return obj.nft_offer_index === offerIndex;
@@ -340,6 +342,7 @@ export class Attendify {
         res = await client.request({
           command: "account_nfts",
           account: walletAddress,
+          ledger_index: "validated",
           limit: 400,
           marker: res ? res.result.marker : undefined,
         });
@@ -384,6 +387,7 @@ export class Attendify {
       const info = await client.request({
         command: "account_info",
         account: wallet.classicAddress,
+        ledger_index: "validated",
       });
 
       const balance = parseFloat(dropsToXrp(info.result.account_data.Balance));
@@ -480,6 +484,7 @@ export class Attendify {
         res = await client.request({
           command: "account_objects",
           account: wallet.classicAddress,
+          ledger_index: "validated",
           type: "ticket",
           limit: 400,
           marker: res ? res.result.marker : undefined,
