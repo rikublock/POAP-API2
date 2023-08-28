@@ -2,8 +2,10 @@
 
 Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance-API](https://github.com/XRPLBounties/Proof-of-Attendance-API).
 
-## Getting Started
-- install dependencies with `yarn install`
+## Setup
+
+### Configuration 
+
 - rename `.env.example` to `.env`, update the values:
   - configure networks (only use websocket URLs, preconfigured default values generally work):
     - `MAINNET_URL`
@@ -25,8 +27,11 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
     - `JWT_SECRET` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
   - configure hashids
     - `HASHID_SALT` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
-- run the app with `yarn start`
-- optionally run the clean up daemon with `yarn start:daemon`
+
+### Run
+- install dependencies with `yarn install`
+- run the server api with `yarn start`
+- run the daemon with `yarn start:daemon` in a separate terminal
 
 ## Notable Changes
 
