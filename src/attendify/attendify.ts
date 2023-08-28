@@ -93,7 +93,7 @@ export class Attendify {
    * Check if an account exists on a particular network
    * @param networkId - network identifier
    * @param walletAddress - account wallet address
-   * @returns  true, if the operation was successful
+   * @returns  true, if the ledger account exists
    */
   async checkAccountExists(
     networkId: NetworkIdentifier,
@@ -111,6 +111,7 @@ export class Attendify {
       return true;
     } catch (err) {
       if (err instanceof RippledError) {
+        // error: Account not found
         if ((err.data as any)?.error_code === 19) {
           return false;
         }
