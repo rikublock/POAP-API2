@@ -512,7 +512,7 @@ export class Attendify {
       const tx = await client.submitAndWait(
         {
           TransactionType: "TicketCreate",
-          Account: wallet.address,
+          Account: wallet.classicAddress,
           TicketCount: ticketCount,
         },
         {
