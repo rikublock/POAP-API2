@@ -61,6 +61,13 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
 - support for alternative IPFS provider (web3.storage)
 - many more overall code improvements
 
+## Reserve Requirements 
+
+A platform (vault wallet) account needs a minimum balance of 520 XRP to function correctly:
+- 10 XRP base reserve (account activation)
+- 500 XRP owner reserve for tickets (used for batch minting)
+- 10 XRP to cover ongoing transaction fees
+
 ## Manage Admins
 
 Use the `yarn run console admin` script to add or remove the admin account flag in the database.
