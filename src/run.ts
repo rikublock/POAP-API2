@@ -99,9 +99,6 @@ export async function main() {
             )
           );
         }
-        if (data.networkId == NetworkIdentifier.UNKNOWN) {
-          return next(new AttendifyError("Invalid network ID"));
-        }
 
         const metadata: Metadata = {
           title: data.title,
