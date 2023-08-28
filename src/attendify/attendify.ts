@@ -123,6 +123,35 @@ export class Attendify {
   }
 
   /**
+   * Check if an account has set the platform as authorized minter
+   * @param networkId - network identifier
+   * @param walletAddress - account wallet address
+   * @returns  true, if the minter is configured correctly
+   */
+  async checkAuthorizedMinter(
+    networkId: NetworkIdentifier,
+    walletAddress: string
+  ): Promise<boolean> {
+    const [client, wallet] = this.getNetworkConfig(networkId);
+    await client.connect();
+    try {
+      console.debug(
+        `Checking authorized minter status of account '${walletAddress}'`
+      );
+      const info = await client.request({
+        command: "account_info",
+        account: walletAddress,
+        ledger_index: "validated",
+      });
+      const minter = (info.result.account_data as LedgerEntry.AccountRoot)
+        .NFTokenMinter;
+      return minter === wallet.classicAddress;
+    } finally {
+      await client.disconnect();
+    }
+  }
+
+  /**
    * Create a sell offer for an NFT
    * @param networkId - network identifier
    * @param walletAddress - recipient wallet address (offer can only be accepted by this account)
@@ -457,6 +486,24 @@ export class Attendify {
     }
 
     return claim.toJSON();
+  }
+
+  /**
+   * Fetch authorized minter status for an account
+   * @param networkId - network identifier
+   * @param walletAddress - account wallet address
+   * @returns status info
+   */
+  async getMinterStatus(
+    networkId: NetworkIdentifier,
+    walletAddress: string
+  ): Promise<[string, boolean]> {
+    const [client, wallet] = this.getNetworkConfig(networkId);
+    const hasMinter = await this.checkAuthorizedMinter(
+      networkId,
+      walletAddress
+    );
+    return [wallet.classicAddress, hasMinter];
   }
 
   /**

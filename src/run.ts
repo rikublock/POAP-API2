@@ -15,20 +15,21 @@ import { Attendify } from "./attendify";
 import { postToIPFS } from "./server/ipfs";
 import { WalletType, Metadata, NetworkIdentifier } from "./types";
 import {
-  APIPostEventClaim,
-  APIPostAuthLogin,
-  APIPostEventCreate,
-  APIPostAuthNonce,
-  APIPostUserUpdate,
   APIGetEventInfo,
-  APIGetEventsPublic,
+  APIGetEventLink,
+  APIGetEventMinter,
   APIGetEventsOwned,
+  APIGetEventsPublic,
   APIGetOffers,
   APIGetUserInfo,
+  APIGetUserSlots,
+  APIPostAuthLogin,
+  APIPostAuthNonce,
+  APIPostEventClaim,
+  APIPostEventCreate,
   APIPostEventInvite,
   APIPostEventJoin,
-  APIGetUserSlots,
-  APIGetEventLink,
+  APIPostUserUpdate,
 } from "./server/validate";
 import { ServerError, errorHandler } from "./server/error";
 import config from "./config";
@@ -56,6 +57,58 @@ export async function main() {
   app.use(cors());
   app.use(express.urlencoded({ extended: false }));
   app.use(express.json());
+
+  /**
+   * Fetch authorized minter information
+   * @route GET /event/minter
+   * @param networkId - network identifier
+   * @returns minter status information
+   */
+  app.get(
+    "/event/minter",
+    authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
+    guardMiddleware("organizer"),
+    async (req: JWTRequest, res: Response, next: NextFunction) => {
+      try {
+        // verify request data
+        const data = plainToClass(
+          APIGetEventMinter,
+          {
+            ...req.query,
+            walletAddress: (req.auth as JwtPayload)?.walletAddress,
+          },
+          {
+            strategy: "exposeAll",
+            excludeExtraneousValues: true,
+          }
+        );
+        const errors = await validate(data);
+        if (errors.length > 0) {
+          return next(
+            new ServerError(
+              HttpStatusCode.BadRequest,
+              "Data validation failed",
+              errors
+            )
+          );
+        }
+
+        const [minterAddress, isConfigured] =
+          await AttendifyLib.getMinterStatus(
+            data.networkId,
+            data.walletAddress
+          );
+        res.json({
+          result: {
+            walletAddress: minterAddress,
+            isConfigured,
+          },
+        });
+      } catch (error) {
+        return next(error);
+      }
+    }
+  );
 
   /**
    * Create a new event and uploads metadata to IPFS

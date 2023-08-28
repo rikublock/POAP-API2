@@ -74,6 +74,18 @@ export function IsNotTrimmable(validationOptions?: ValidationOptions) {
   };
 }
 
+export class APIGetEventMinter {
+  @Expose()
+  @Type(() => Number)
+  @IsEnum(NetworkIdentifier)
+  @NotEquals(NetworkIdentifier.UNKNOWN)
+  networkId: NetworkIdentifier;
+
+  @Expose()
+  @IsXrpAddress()
+  walletAddress: string;
+}
+
 export class APIPostEventCreate {
   @Expose()
   @IsEnum(NetworkIdentifier)
