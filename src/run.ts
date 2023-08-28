@@ -786,6 +786,7 @@ export async function main() {
         const permissions: Permission[] = [
           "attendee",
           ...(user.isOrganizer ? ["organizer" as Permission] : []),
+          ...(user.isAdmin ? ["admin" as Permission] : []),
         ];
 
         if (data.walletType == WalletType.XUMM_WALLET) {
