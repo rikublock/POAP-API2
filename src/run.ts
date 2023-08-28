@@ -931,6 +931,27 @@ export async function main() {
     }
   );
 
+  /**
+   * Request platform usage information
+   * @route GET /admin/stats
+   * @returns usage statistics
+   */
+  app.get(
+    "/admin/stats",
+    authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
+    guardMiddleware("admin"),
+    async (req: JWTRequest, res: Response, next: NextFunction) => {
+      try {
+        // TODO
+        res.json({
+          result: true,
+        });
+      } catch (error) {
+        return next(error);
+      }
+    }
+  );
+
   app.use(errorHandler);
 
   app.listen(config.server.port, () => {
