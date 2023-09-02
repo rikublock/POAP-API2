@@ -133,7 +133,7 @@ export class APIPostEventCreate {
   @Expose()
   @IsInt()
   @Min(1)
-  @Max(200)
+  @Max(config.attendify.maxEventSlots)
   tokenCount: number;
 
   @Expose()

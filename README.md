@@ -27,6 +27,9 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
     - `JWT_SECRET` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
   - configure hashids
     - `HASHID_SALT` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
+  - configure minting 
+    - `MAX_TICKETS` (between 2 and 250, see [here](https://xrpl.org/tickets.html#limitations))
+    - `MAX_EVENT_SLOTS`
 
 ### Run
 - install dependencies with `yarn install`

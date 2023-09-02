@@ -6,6 +6,8 @@ import { NetworkIdentifier, NetworkConfig } from "./types";
 type ConfigAttendify = {
   db: SequelizeOptions;
   networkConfigs: NetworkConfig[];
+  maxTickets: number;
+  maxEventSlots: number;
 };
 
 type ConfigServer = {
@@ -39,7 +41,6 @@ const DEFAULT: Config = {
         timestamps: false,
       },
     },
-
     networkConfigs: [
       {
         networkId: NetworkIdentifier.MAINNET,
@@ -62,6 +63,8 @@ const DEFAULT: Config = {
         vaultWalletSeed: process.env.AMM_DEVNET_VAULT_WALLET_SEED as string,
       },
     ],
+    maxTickets: parseInt(process.env.MAX_TICKETS as string),
+    maxEventSlots: parseInt(process.env.MAX_EVENT_SLOTS as string),
   },
   server: {
     port: 4000,
