@@ -26,7 +26,9 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from "class-validator";
+import config from "../config";
 import { NetworkIdentifier, WalletType } from "../types";
+import { hashids } from "./util";
 
 @ValidatorConstraint({ name: "isValidAddress", async: false })
 class XrpAddressConstraint implements ValidatorConstraintInterface {
@@ -35,7 +37,7 @@ class XrpAddressConstraint implements ValidatorConstraintInterface {
   }
 
   defaultMessage(args: ValidationArguments) {
-    return "Address ($value) is not a valid XRP address!";
+    return "Value ($value) is not a valid XRP address!";
   }
 }
 
@@ -47,6 +49,38 @@ export function IsXrpAddress(validationOptions?: ValidationOptions) {
       options: validationOptions,
       constraints: [],
       validator: XrpAddressConstraint,
+    });
+  };
+}
+
+@ValidatorConstraint({ name: "isValidHashid", async: false })
+class HashidConstraint implements ValidatorConstraintInterface {
+  validate(id: string, args: ValidationArguments) {
+    if (typeof id !== "string") {
+      return false;
+    } else if (
+      id.length < config.server.hashidLength ||
+      id.length > 2 * config.server.hashidLength
+    ) {
+      return false;
+    } else {
+      return hashids.isValidId(id);
+    }
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return "Value ($value) is not a valid hash ID!";
+  }
+}
+
+export function IsHashid(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      target: object.constructor,
+      propertyName: propertyName,
+      options: validationOptions,
+      constraints: [],
+      validator: HashidConstraint,
     });
   };
 }
@@ -143,9 +177,8 @@ export class APIPostEventJoin {
   walletAddress: string;
 
   @Expose()
-  @IsInt()
-  @Min(1)
-  eventId: number;
+  @IsHashid()
+  maskedEventId: string;
 
   @Expose()
   @IsBoolean()
@@ -158,9 +191,8 @@ export class APIPostEventClaim {
   walletAddress: string;
 
   @Expose()
-  @IsInt()
-  @Min(1)
-  eventId: number;
+  @IsHashid()
+  maskedEventId: string;
 }
 
 export class APIPostEventInvite {

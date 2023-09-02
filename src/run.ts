@@ -43,14 +43,13 @@ import {
 } from "./server/auth";
 import { AttendifyError } from "./attendify/error";
 import { guardMiddleware } from "./server/guard";
+import { hashids } from "./server/util";
 
 export async function main() {
   const AttendifyLib = new Attendify(config.attendify.networkConfigs);
   await AttendifyLib.init();
 
   const cache = new NodeCache({ stdTTL: 600 });
-
-  const hashids = new Hashids(config.server.hashidSalt, 24);
 
   // init server
   const app = express();
@@ -219,8 +218,20 @@ export async function main() {
           );
         }
 
+        const values = hashids.decode(data.maskedEventId);
+        if (values.length != 1) {
+          return next(
+            new ServerError(
+              HttpStatusCode.BadRequest,
+              "Invalid masked event ID",
+              errors
+            )
+          );
+        }
+
+        const eventId = values[0].valueOf() as number;
         const claim = await AttendifyLib.addParticipant(
-          data.eventId,
+          eventId,
           data.walletAddress,
           data.createOffer,
           true
@@ -237,7 +248,7 @@ export async function main() {
   /**
    * Claim an NFT offer
    * @route POST /event/claim
-   * @param eventId - event identifier
+   * @param eventId - masked event identifier
    * @returns offer json object
    */
   app.post(
@@ -268,10 +279,19 @@ export async function main() {
           );
         }
 
-        const claim = await AttendifyLib.getClaim(
-          data.walletAddress,
-          data.eventId
-        );
+        const values = hashids.decode(data.maskedEventId);
+        if (values.length != 1) {
+          return next(
+            new ServerError(
+              HttpStatusCode.BadRequest,
+              "Invalid masked event ID",
+              errors
+            )
+          );
+        }
+
+        const eventId = values[0].valueOf() as number;
+        const claim = await AttendifyLib.getClaim(data.walletAddress, eventId);
         res.json({
           result: claim,
         });

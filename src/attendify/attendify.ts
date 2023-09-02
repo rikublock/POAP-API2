@@ -441,7 +441,7 @@ export class Attendify {
    * @param eventId - event identifier
    * @returns offer json object
    */
-  async getClaim(walletAddress: string, eventId: number): Promise<any> {
+  async getClaim(walletAddress: string, eventId: number): Promise<any | null> {
     // query claim
     const claim = await orm.Claim.findOne({
       where: { ownerWalletAddress: walletAddress },
@@ -454,7 +454,8 @@ export class Attendify {
       ],
     });
     if (!(claim && claim.token && claim.token.event)) {
-      throw new AttendifyError("Unable to find Claim");
+      // user is not participant
+      return null;
     }
 
     const networkId = claim.token.event.networkId as NetworkIdentifier;

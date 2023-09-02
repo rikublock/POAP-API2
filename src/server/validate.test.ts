@@ -1,16 +1,18 @@
 import { validate } from "class-validator";
 import { plainToClass } from "class-transformer";
 import {
-  APIPostEventCreate,
-  APIPostUserUpdate,
-  IsXrpAddress,
-  IsNotTrimmable,
   APIGetEventInfo,
-  APIGetEventsPublic,
   APIGetEventsOwned,
+  APIGetEventsPublic,
+  APIPostEventCreate,
   APIPostEventInvite,
+  APIPostUserUpdate,
+  IsHashid,
+  IsNotTrimmable,
+  IsXrpAddress,
 } from "./validate";
 import { NetworkIdentifier } from "../types";
+import { hashids } from "./util";
 
 describe("validate XRP address", () => {
   class Post {
@@ -58,6 +60,64 @@ describe("validate XRP address", () => {
   test("undefined value address", async () => {
     // @ts-ignore
     post.address = undefined;
+    const errors = await validate(post);
+    expect(errors.length).toBe(1);
+  });
+});
+
+describe("validate hashid", () => {
+  class Post {
+    @IsHashid()
+    id: string;
+  }
+
+  let post: Post;
+
+  beforeEach(() => {
+    post = new Post();
+  });
+
+  test("valid hashid", async () => {
+    post.id = hashids.encode(123);
+    const errors = await validate(post);
+    expect(errors.length).toBe(0);
+  });
+
+  test("invalid hashid", async () => {
+    post.id = "_";
+    const errors = await validate(post);
+    expect(errors.length).toBe(1);
+  });
+
+  test("short hashid", async () => {
+    post.id = "A";
+    const errors = await validate(post);
+    expect(errors.length).toBe(1);
+  });
+
+  test("empty hashid", async () => {
+    post.id = "";
+    const errors = await validate(post);
+    expect(errors.length).toBe(1);
+  });
+
+  test("number value", async () => {
+    // @ts-ignore
+    post.id = 1;
+    const errors = await validate(post);
+    expect(errors.length).toBe(1);
+  });
+
+  test("null value", async () => {
+    // @ts-ignore
+    post.id = null;
+    const errors = await validate(post);
+    expect(errors.length).toBe(1);
+  });
+
+  test("undefined value", async () => {
+    // @ts-ignore
+    post.id = undefined;
     const errors = await validate(post);
     expect(errors.length).toBe(1);
   });
@@ -155,6 +215,13 @@ describe("validate not-trimmable string", () => {
 
   test("leading newline", async () => {
     post.value = "\ntest";
+    const errors = await validate(post);
+    expect(errors.length).toBe(1);
+  });
+
+  test("null value", async () => {
+    // @ts-ignore
+    post.value = null;
     const errors = await validate(post);
     expect(errors.length).toBe(1);
   });

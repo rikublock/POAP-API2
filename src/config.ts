@@ -14,6 +14,7 @@ type ConfigServer = {
   xummApiSecret: string;
   jwtSecret: string;
   hashidSalt: string;
+  hashidLength: number;
   ipfs: {
     infuraId: string;
     infuraSecret: string;
@@ -68,6 +69,7 @@ const DEFAULT: Config = {
     xummApiSecret: process.env.XUMM_API_SECRET as string,
     jwtSecret: process.env.JWT_SECRET as string,
     hashidSalt: process.env.HASHID_SALT as string,
+    hashidLength: 2,
     ipfs: {
       infuraId: process.env.IPFS_INFURA_ID as string,
       infuraSecret: process.env.IPFS_INFURA_SECRET as string,
