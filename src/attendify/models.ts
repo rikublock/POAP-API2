@@ -11,6 +11,7 @@ import {
   HasManyCountAssociationsMixin,
   HasManyCreateAssociationMixin,
   HasManyHasAssociationMixin,
+  HasOneCreateAssociationMixin,
   InferAttributes,
   InferCreationAttributes,
   Model,
@@ -123,8 +124,8 @@ User.init(
 );
 
 export class Event extends Model<
-  InferAttributes<Event, { omit: "attendees" | "nfts" }>,
-  InferCreationAttributes<Event, { omit: "attendees" | "nfts" }>
+  InferAttributes<Event, { omit: "accounting" | "attendees" | "nfts" }>,
+  InferCreationAttributes<Event, { omit: "accounting" | "attendees" | "nfts" }>
 > {
   declare id: CreationOptional<number>;
   declare status: EventStatus;
@@ -142,6 +143,10 @@ export class Event extends Model<
   declare ownerWalletAddress: ForeignKey<User["walletAddress"]>;
   declare owner?: NonAttribute<User>;
 
+  declare createAccounting: HasOneCreateAssociationMixin<Accounting>;
+
+  declare accounting?: NonAttribute<Accounting>;
+
   declare addAttendee: BelongsToManyAddAssociationMixin<User, string>;
   declare countAttendees: BelongsToManyCountAssociationsMixin;
   declare getAttendees: BelongsToManyGetAssociationsMixin<User>;
@@ -158,6 +163,7 @@ export class Event extends Model<
 
   declare static associations: {
     owner: Association<Event, User>;
+    accounting: Association<Event, Accounting>;
     attendees: Association<Event, User>;
     nfts: Association<Event, NFT>;
   };
@@ -255,16 +261,77 @@ Participation.init(
   }
 );
 
+export class Accounting extends Model<
+  InferAttributes<Accounting>,
+  InferCreationAttributes<Accounting>
+> {
+  declare id: CreationOptional<number>;
+  declare depositValue: number;
+  declare depositTxHash: CreationOptional<string>;
+  declare refundValue: CreationOptional<number>;
+  declare refundTxHash: CreationOptional<string>;
+  declare accumulatedTxFees: number;
+
+  declare eventId: ForeignKey<Event["id"]>;
+  declare event?: NonAttribute<Event>;
+
+  declare static associations: {
+    event: Association<Accounting, Event>;
+  };
+}
+
+Accounting.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+      allowNull: false,
+    },
+    depositValue: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+    },
+    depositTxHash: {
+      type: DataTypes.STRING(66),
+      allowNull: true,
+    },
+    refundValue: {
+      type: DataTypes.BIGINT,
+      allowNull: true,
+    },
+    refundTxHash: {
+      type: DataTypes.STRING(66),
+      allowNull: true,
+    },
+    accumulatedTxFees: {
+      type: DataTypes.BIGINT,
+      allowNull: true,
+    },
+    eventId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      unique: true,
+    },
+  },
+  {
+    sequelize,
+    tableName: "accounting",
+  }
+);
+
 export class NFT extends Model<
-  InferAttributes<NFT>,
-  InferCreationAttributes<NFT>
+  InferAttributes<NFT, { omit: "claim" }>,
+  InferCreationAttributes<NFT, { omit: "claim" }>
 > {
   declare id: string;
-  declare issuerWalletAddress: ForeignKey<User["walletAddress"]>;
-  declare eventId: ForeignKey<Event["id"]>;
 
+  declare issuerWalletAddress: ForeignKey<User["walletAddress"]>;
   declare issuer?: NonAttribute<User>;
+
+  declare eventId: ForeignKey<Event["id"]>;
   declare event?: NonAttribute<Event>;
+
   declare claim?: NonAttribute<Claim>;
 
   declare static associations: {
@@ -293,12 +360,13 @@ export class Claim extends Model<
   InferCreationAttributes<Claim>
 > {
   declare id: CreationOptional<number>;
-  declare ownerWalletAddress: ForeignKey<User["walletAddress"]>;
-  declare tokenId: ForeignKey<NFT["id"]>;
   declare offerIndex: string | null;
   declare claimed: boolean;
 
+  declare ownerWalletAddress: ForeignKey<User["walletAddress"]>;
   declare owner?: NonAttribute<User>;
+
+  declare tokenId: ForeignKey<NFT["id"]>;
   declare token?: NonAttribute<NFT>;
 
   declare static associations: {
@@ -322,6 +390,11 @@ Claim.init(
     claimed: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
+    },
+    tokenId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      unique: true,
     },
   },
   {
@@ -352,6 +425,17 @@ User.belongsToMany(Event, {
   foreignKey: "userWalletAddress",
   otherKey: "eventId",
   as: "attendances",
+});
+
+Event.hasOne(Accounting, {
+  sourceKey: "id",
+  foreignKey: "eventId",
+  as: "accounting",
+});
+Accounting.belongsTo(Event, {
+  targetKey: "id",
+  foreignKey: "eventId",
+  as: "event",
 });
 
 Event.hasMany(NFT, {
@@ -394,8 +478,9 @@ Claim.belongsTo(NFT, {
 });
 
 export const orm = {
-  User,
+  Accounting,
+  Claim,
   Event,
   NFT,
-  Claim,
+  User,
 };
