@@ -242,10 +242,11 @@ export class APIGetEventLink {
   walletAddress: string;
 }
 
-export class APIGetEventsPublic {
+export class APIGetEventsAll {
   @Expose()
   @Type(() => Number)
   @IsEnum(NetworkIdentifier)
+  @NotEquals(NetworkIdentifier.UNKNOWN)
   networkId: NetworkIdentifier;
 
   @Expose()
@@ -253,7 +254,6 @@ export class APIGetEventsPublic {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(200)
   limit: number;
 }
 
@@ -274,13 +274,6 @@ export class APIGetEventsOwned {
   @IsInt()
   @Min(1)
   limit?: number;
-
-  @Expose()
-  @Transform(({ value }) => {
-    return [true, "true", 1, "1"].indexOf(value) > -1;
-  })
-  @IsBoolean()
-  includeAttendees: boolean;
 }
 
 export class APIGetOffers {

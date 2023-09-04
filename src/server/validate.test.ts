@@ -2,8 +2,8 @@ import { validate } from "class-validator";
 import { plainToClass } from "class-transformer";
 import {
   APIGetEventInfo,
+  APIGetEventsAll,
   APIGetEventsOwned,
-  APIGetEventsPublic,
   APIPostEventCreate,
   APIPostEventInvite,
   APIPostUserUpdate,
@@ -636,7 +636,7 @@ describe("validate APIPostUserUpdate", () => {
   });
 });
 
-describe("transform APIGetEventsPublic", () => {
+describe("transform APIGetEventsAll", () => {
   let plain: { networkId: NetworkIdentifier | string; limit?: number | string };
 
   beforeEach(() => {
@@ -647,21 +647,21 @@ describe("transform APIGetEventsPublic", () => {
   });
 
   test("valid transform", async () => {
-    const data = plainToClass(APIGetEventsPublic, plain);
+    const data = plainToClass(APIGetEventsAll, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
   });
 
   test("unknown network ID", async () => {
     plain.networkId = NetworkIdentifier.UNKNOWN;
-    const data = plainToClass(APIGetEventsPublic, plain);
+    const data = plainToClass(APIGetEventsAll, plain);
     const errors = await validate(data);
-    expect(errors.length).toBe(0);
+    expect(errors.length).toBe(1);
   });
 
   test("integer network ID", async () => {
     plain.networkId = 3;
-    const data = plainToClass(APIGetEventsPublic, plain);
+    const data = plainToClass(APIGetEventsAll, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
     expect(data.networkId).toBe(NetworkIdentifier.DEVNET);
@@ -669,7 +669,7 @@ describe("transform APIGetEventsPublic", () => {
 
   test("string network ID", async () => {
     plain.networkId = "3";
-    const data = plainToClass(APIGetEventsPublic, plain);
+    const data = plainToClass(APIGetEventsAll, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
     expect(data.networkId).toBe(NetworkIdentifier.DEVNET);
@@ -677,21 +677,21 @@ describe("transform APIGetEventsPublic", () => {
 
   test("string limit", async () => {
     plain.limit = "50";
-    const data = plainToClass(APIGetEventsPublic, plain);
+    const data = plainToClass(APIGetEventsAll, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
   });
 
   test("large limit", async () => {
     plain.limit = 2000;
-    const data = plainToClass(APIGetEventsPublic, plain);
+    const data = plainToClass(APIGetEventsAll, plain);
     const errors = await validate(data);
-    expect(errors.length).toBe(1);
+    expect(errors.length).toBe(0);
   });
 
   test("optional limit", async () => {
     plain.limit = undefined;
-    const data = plainToClass(APIGetEventsPublic, plain);
+    const data = plainToClass(APIGetEventsAll, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
     expect(data.limit).toBe(undefined);
@@ -703,7 +703,6 @@ describe("transform APIGetEventsOwned", () => {
     networkId: NetworkIdentifier | string;
     walletAddress: string;
     limit?: number | string;
-    includeAttendees: boolean | string;
     MORE?: string;
   };
 
@@ -712,7 +711,6 @@ describe("transform APIGetEventsOwned", () => {
       networkId: NetworkIdentifier.TESTNET,
       walletAddress: "rBTwLga3i2gz3doX6Gva3MgEV8ZCD8jjah",
       limit: 50,
-      includeAttendees: true,
     };
   });
 
@@ -764,7 +762,7 @@ describe("transform APIGetEventsOwned", () => {
 
   test("string limit", async () => {
     plain.limit = "50";
-    const data = plainToClass(APIGetEventsPublic, plain);
+    const data = plainToClass(APIGetEventsOwned, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
     expect(data.limit).toBe(50);
@@ -772,33 +770,9 @@ describe("transform APIGetEventsOwned", () => {
 
   test("optional limit", async () => {
     plain.limit = undefined;
-    const data = plainToClass(APIGetEventsPublic, plain);
+    const data = plainToClass(APIGetEventsOwned, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
     expect(data.limit).toBe(undefined);
-  });
-
-  test("string include attendees true", async () => {
-    plain.includeAttendees = "true";
-    const data = plainToClass(APIGetEventsOwned, plain);
-    const errors = await validate(data);
-    expect(errors.length).toBe(0);
-    expect(data.includeAttendees).toBe(true);
-  });
-
-  test("string include attendees false", async () => {
-    plain.includeAttendees = "false";
-    const data = plainToClass(APIGetEventsOwned, plain);
-    const errors = await validate(data);
-    expect(errors.length).toBe(0);
-    expect(data.includeAttendees).toBe(false);
-  });
-
-  test("string number include attendees", async () => {
-    plain.includeAttendees = "1";
-    const data = plainToClass(APIGetEventsOwned, plain);
-    const errors = await validate(data);
-    expect(errors.length).toBe(0);
-    expect(data.includeAttendees).toBe(true);
   });
 });

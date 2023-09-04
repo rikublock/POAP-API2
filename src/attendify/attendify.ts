@@ -778,12 +778,12 @@ export class Attendify {
   }
 
   /**
-   * Fetch public events from the database
+   * Fetch all events from the database
    * @param networkId - network identifier
    * @param limit - maximum number of returned results
    * @returns list of event json objects
    */
-  async getEventsPublic(
+  async getEventsAll(
     networkId: NetworkIdentifier,
     limit: number = 100
   ): Promise<any[]> {
@@ -794,8 +794,15 @@ export class Attendify {
         ...(networkId !== NetworkIdentifier.UNKNOWN
           ? { networkId: networkId }
           : {}),
-        isManaged: false,
       },
+      include: [
+        orm.Event.associations.accounting,
+        {
+          association: orm.Event.associations.attendees,
+          through: { attributes: [] }, // exclude: 'Participation'
+        },
+        orm.Event.associations.owner,
+      ],
     });
     return events.map((event) => event.toJSON());
   }
@@ -805,14 +812,12 @@ export class Attendify {
    * @param networkId - network identifier
    * @param walletAddress - wallet address of the user
    * @param limit - maximum number of returned results
-   * @param includeAttendees - optionally include event attendees information
    * @returns list of event json objects
    */
   async getEventsOwned(
     networkId: NetworkIdentifier,
     walletAddress: string,
-    limit: number = 100,
-    includeAttendees: boolean = false
+    limit: number = 100
   ): Promise<any[]> {
     const events = await orm.Event.findAll({
       order: [["id", "DESC"]],
@@ -824,15 +829,12 @@ export class Attendify {
         ownerWalletAddress: walletAddress,
       },
       include: [
+        orm.Event.associations.accounting,
+        {
+          association: orm.Event.associations.attendees,
+          through: { attributes: [] }, // exclude: 'Participation'
+        },
         orm.Event.associations.owner,
-        ...(includeAttendees
-          ? [
-              {
-                association: orm.Event.associations.attendees,
-                through: { attributes: [] }, // exclude: 'Participation'
-              },
-            ]
-          : []),
       ],
     });
     return events.map((event) => event.toJSON());

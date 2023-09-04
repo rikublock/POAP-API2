@@ -18,8 +18,8 @@ import {
   APIGetEventInfo,
   APIGetEventLink,
   APIGetEventMinter,
+  APIGetEventsAll,
   APIGetEventsOwned,
-  APIGetEventsPublic,
   APIGetOffers,
   APIGetUserInfo,
   APIGetUserSlots,
@@ -452,18 +452,20 @@ export async function main() {
   );
 
   /**
-   * Request a list of public events
-   * @route GET /events/public
+   * Request a list of all events
+   * @route GET /events/all
    * @param networkId - network identifier
    * @param limit - maximum number of returned results
    * @returns list of event json objects
    */
   app.get(
-    "/events/public",
+    "/events/all",
+    authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
+    guardMiddleware("admin"),
     async (req: Request, res: Response, next: NextFunction) => {
       try {
         // verify request data
-        const data = plainToClass(APIGetEventsPublic, req.query, {
+        const data = plainToClass(APIGetEventsAll, req.query, {
           strategy: "exposeAll",
           excludeExtraneousValues: true,
         });
@@ -478,7 +480,7 @@ export async function main() {
           );
         }
 
-        const result = await AttendifyLib.getEventsPublic(
+        const result = await AttendifyLib.getEventsAll(
           data.networkId,
           data.limit
         );
@@ -496,7 +498,6 @@ export async function main() {
    * @route GET /events/owned
    * @param networkId - network identifier
    * @param limit - maximum number of returned results
-   * @param includeAttendees - optionally include event attendees information
    * @returns list of event json objects
    */
   app.get(
@@ -532,7 +533,6 @@ export async function main() {
           data.networkId,
           data.walletAddress,
           data.limit,
-          data.includeAttendees
         );
         res.json({
           result: result,

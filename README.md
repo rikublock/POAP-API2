@@ -56,7 +56,7 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
   - POST `/event/invite` - add new participants to an event
   - GET `/event/info/:id` - fetch details about one event
   - GET `/event/link/:id` - fetch a masked invitation link for an event
-  - GET `/events/public` - fetch a list of public events
+  - GET `/events/all` - fetch a list of all events
   - GET `/events/owned` - fetch a list of user owned events
   - GET `/offers` - fetch a list of NFT offers
   - GET `/user/info` - fetch details about a user
