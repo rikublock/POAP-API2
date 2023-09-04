@@ -532,7 +532,7 @@ export async function main() {
         const result = await AttendifyLib.getEventsOwned(
           data.networkId,
           data.walletAddress,
-          data.limit,
+          data.limit
         );
         res.json({
           result: result,
@@ -740,17 +740,17 @@ export async function main() {
   );
 
   /**
-   * Request a list of all users on the platform
-   * @route GET /users
+   * Request a list of all user wallet addresses on the platform
+   * @route GET /users/lookup
    * @returns list of user wallet addresses
    */
   app.get(
-    "/users",
+    "/users/lookup",
     authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
     guardMiddleware("organizer"),
     async (req: JWTRequest, res: Response, next: NextFunction) => {
       try {
-        const key = "_api_users";
+        const key = "_api_users_lookup";
         let addresses = cache.get<string[]>(key);
         if (!addresses) {
           const result = await AttendifyLib.getUsers(NetworkIdentifier.UNKNOWN);
@@ -759,6 +759,29 @@ export async function main() {
         }
         res.json({
           result: addresses,
+        });
+      } catch (error) {
+        return next(error);
+      }
+    }
+  );
+
+  /**
+   * Request a list of all organizers on the platform
+   * @route GET /users/organizers
+   * @returns list of user json objects
+   */
+  app.get(
+    "/users/organizers",
+    authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
+    guardMiddleware("admin"),
+    async (req: JWTRequest, res: Response, next: NextFunction) => {
+      try {
+        const users = await AttendifyLib.getOrganizers(
+          NetworkIdentifier.UNKNOWN
+        );
+        res.json({
+          result: users,
         });
       } catch (error) {
         return next(error);

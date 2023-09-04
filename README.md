@@ -62,7 +62,8 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
   - GET `/user/info` - fetch details about a user
   - POST `/user/update` - update user profile
   - GET `/user/slots` - fetch event slot details of a user
-  - GET `/users` - fetch a list of all users on the platform
+  - GET `/users/lookup` - fetch a list of all user wallet addresses on the platform
+  - GET `/users/organizers` - fetch a list of all organizers on the platform
   - GET `/auth/heartbeat` - check if backend service is available 
   - POST `/auth/nonce` - request a login nonce
   - POST `/auth/login` - login, request jwt 

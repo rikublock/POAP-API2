@@ -7,10 +7,13 @@ import {
   isValidSecret,
   LedgerEntry,
   NFTokenCreateOfferFlags,
+  NFTokenMint,
   NFTokenMintFlags,
   RippledError,
   TransactionMetadata,
+  TxResponse,
   Wallet,
+  xrpToDrops,
 } from "xrpl";
 import type { CreatedNode } from "xrpl/dist/npm/models/transactions/metadata";
 import { Op } from "sequelize";
@@ -587,6 +590,39 @@ export class Attendify {
   }
 
   /**
+   * Calculate the deposit value in drops for an event
+   * @param networkId - network identifier
+   * @param slots - number of event slots
+   * @returns deposit requirements
+   */
+  async calcDepositValue(
+    networkId: NetworkIdentifier,
+    slots: number
+  ): Promise<bigint> {
+    const [client, wallet] = this.getNetworkConfig(networkId);
+    await client.connect();
+    try {
+      // TODO consider caching the result
+      const state = await client.request({
+        command: "server_info",
+      });
+      const ledger = state.result.info.validated_ledger;
+      if (!ledger) {
+        throw new AttendifyError("Unable to fetch server info");
+      }
+
+      // max NTF offer reserves and 1 XRP for tx fees/creation charge
+      const deposit =
+        BigInt(xrpToDrops(ledger.reserve_inc_xrp)) * BigInt(slots) +
+        BigInt(xrpToDrops(1));
+
+      return deposit;
+    } finally {
+      await client.disconnect();
+    }
+  }
+
+  /**
    * Create a new event and pre-mint NFTs
    * @param networkId - network identifier
    * @param walletAddress - event owner wallet address
@@ -639,7 +675,7 @@ export class Attendify {
     try {
       // batch mint
       console.debug(`Batch minting ${tokenCount} NFT(s)`);
-      const promises = [];
+      const promises: Promise<TxResponse<NFTokenMint>>[] = [];
       for (let i = 0; i < tokenCount; ++i) {
         console.debug(`Minting NFT ${i + 1}/${tokenCount}`);
         promises.push(
@@ -664,10 +700,16 @@ export class Attendify {
 
       const txs = await Promise.all(promises);
       const tokenIds = txs.map((tx) => (tx.result.meta as any).nftoken_id);
+      const accumulatedTxFees = txs.reduce<bigint>(
+        (accumulator, tx) => accumulator + BigInt(tx.result.Fee || "0"),
+        BigInt(0)
+      );
 
       if (tokenIds.length != tokenCount) {
         throw new AttendifyError("NFT mint verification failed");
       }
+
+      const depositValue = await this.calcDepositValue(networkId, tokenCount);
 
       // add event to database
       const event = await owner.createEvent({
@@ -683,6 +725,12 @@ export class Attendify {
         dateStart: metadata.dateStart,
         dateEnd: metadata.dateEnd,
         isManaged: isManaged,
+      });
+
+      // add accounting
+      await event.createAccounting({
+        depositValue: Number(depositValue),
+        accumulatedTxFees: Number(accumulatedTxFees),
       });
 
       // increment next event id
@@ -1042,7 +1090,7 @@ export class Attendify {
 
   /**
    * Fetch a list of all users
-   * @param networkId - network identifier
+   * @param networkId - network identifier (currently ignored)
    * @returns list of user json objects
    */
   async getUsers(networkId: NetworkIdentifier): Promise<any[]> {
@@ -1055,6 +1103,34 @@ export class Attendify {
             .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
         },
       },
+    });
+    return users.map((user) => user.toJSON());
+  }
+
+  /**
+   * Fetch a list of all organizers
+   * @param networkId - network identifier (currently ignored)
+   * @returns list of user json objects
+   */
+  async getOrganizers(networkId: NetworkIdentifier): Promise<any[]> {
+    const users = await orm.User.findAll({
+      order: [["walletAddress", "ASC"]],
+      where: {
+        walletAddress: {
+          [Op.notIn]: this.networkConfigs
+            .filter((c) => isValidSecret(c.vaultWalletSeed))
+            .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+        },
+        isOrganizer: true,
+      },
+      include: [
+        orm.User.associations.events,
+        {
+          association: orm.User.associations.events,
+          include: [orm.Event.associations.accounting],
+          required: true,
+        },
+      ],
     });
     return users.map((user) => user.toJSON());
   }
