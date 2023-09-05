@@ -6,6 +6,11 @@ import { NetworkIdentifier, NetworkConfig } from "./types";
 type ConfigAttendify = {
   db: SequelizeOptions;
   networkConfigs: NetworkConfig[];
+  ipfs: {
+    infuraId: string;
+    infuraSecret: string;
+    web3StorageToken: string;
+  };
   maxTickets: number;
   maxEventSlots: number;
 };
@@ -17,11 +22,6 @@ type ConfigServer = {
   jwtSecret: string;
   hashidSalt: string;
   hashidLength: number;
-  ipfs: {
-    infuraId: string;
-    infuraSecret: string;
-    web3StorageToken: string;
-  };
 };
 
 export type Config = {
@@ -63,6 +63,11 @@ const DEFAULT: Config = {
         vaultWalletSeed: process.env.AMM_DEVNET_VAULT_WALLET_SEED as string,
       },
     ],
+    ipfs: {
+      infuraId: process.env.IPFS_INFURA_ID as string,
+      infuraSecret: process.env.IPFS_INFURA_SECRET as string,
+      web3StorageToken: process.env.IPFS_WEB3_STORAGE_API_TOKEN as string,
+    },
     maxTickets: parseInt(process.env.MAX_TICKETS as string),
     maxEventSlots: parseInt(process.env.MAX_EVENT_SLOTS as string),
   },
@@ -73,11 +78,6 @@ const DEFAULT: Config = {
     jwtSecret: process.env.JWT_SECRET as string,
     hashidSalt: process.env.HASHID_SALT as string,
     hashidLength: 2,
-    ipfs: {
-      infuraId: process.env.IPFS_INFURA_ID as string,
-      infuraSecret: process.env.IPFS_INFURA_SECRET as string,
-      web3StorageToken: process.env.IPFS_WEB3_STORAGE_API_TOKEN as string,
-    },
   },
 };
 

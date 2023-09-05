@@ -11,7 +11,6 @@ import { plainToClass } from "class-transformer";
 import NodeCache from "node-cache";
 
 import { Attendify } from "./attendify";
-import { postToIPFS } from "./server/ipfs";
 import {
   type Metadata,
   NetworkIdentifier,
@@ -167,19 +166,15 @@ export async function main() {
           dateEnd: data.dateEnd,
         };
 
-        const metadataUrl = await postToIPFS(JSON.stringify(metadata));
-
         const eventId = await AttendifyLib.createEvent(
           data.networkId,
           data.walletAddress,
           metadata,
-          metadataUrl,
           data.isManaged
         );
         res.json({
           result: {
             eventId,
-            metadataUri: metadataUrl,
           },
         });
       } catch (error) {

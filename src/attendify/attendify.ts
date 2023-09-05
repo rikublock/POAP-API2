@@ -20,6 +20,7 @@ import { Op } from "sequelize";
 
 import { AttendifyError } from "./error";
 import { db, orm } from "./models";
+import { postToIPFS } from "./ipfs";
 import {
   Metadata,
   NetworkIdentifier,
@@ -632,11 +633,10 @@ export class Attendify {
   }
 
   /**
-   * Create a new event and pre-mint NFTs
+   * Create a new event
    * @param networkId - network identifier
    * @param walletAddress - event owner wallet address
    * @param metadata - event information/details
-   * @param uri - IPFS url to metadata file for NFTs
    * @param isManaged - event signup permissions
    * @returns new event id
    */
@@ -644,7 +644,6 @@ export class Attendify {
     networkId: NetworkIdentifier,
     walletAddress: string,
     metadata: Metadata,
-    uri: string,
     isManaged: boolean
   ): Promise<number> {
     if (!(await this.checkAccountExists(networkId, walletAddress))) {
@@ -661,6 +660,7 @@ export class Attendify {
     const eventId = this.nextEventId;
     const tokenCount = metadata.tokenCount;
 
+    // TODO remove
     // check slot availability
     const result = await orm.Event.findOne({
       where: {
@@ -677,8 +677,79 @@ export class Attendify {
       throw new AttendifyError("Not enough available event slots");
     }
 
-    const ticketSequences = await this.prepareTickets(networkId, tokenCount);
+    const depositValue = await this.calcDepositValue(networkId, tokenCount);
 
+    // add event to database
+    const event = await db.transaction(async (t) => {
+      const event = await owner.createEvent(
+        {
+          id: eventId,
+          status: EventStatus.PENDING,
+          networkId: networkId,
+          title: metadata.title,
+          description: metadata.description,
+          location: metadata.location,
+          tokenCount: tokenCount,
+          imageUrl: metadata.imageUrl,
+          uri: null,
+          dateStart: metadata.dateStart,
+          dateEnd: metadata.dateEnd,
+          isManaged: isManaged,
+        },
+        { transaction: t }
+      );
+
+      // add accounting
+      await event.createAccounting(
+        {
+          depositValue: Number(depositValue),
+          accumulatedTxFees: 0,
+        },
+        { transaction: t }
+      );
+
+      // increment next event id
+      this.nextEventId++;
+
+      return event;
+    });
+
+    return event.id;
+  }
+
+  /**
+   * Pre-mint NFTs for a pending event
+   * @param eventId - event identifier
+   * @returns
+   */
+  async mintEvent(eventId: number): Promise<void> {
+    const event = await orm.Event.findOne({
+      where: { id: eventId },
+      include: [orm.Event.associations.accounting],
+    });
+    if (!event) {
+      throw new AttendifyError("Invalid event ID");
+    }
+
+    // TODO verify we have access to mint on behalf
+
+    // upload metadata
+    const metadata: Metadata = {
+      title: event.title,
+      description: event.description,
+      location: event.location,
+      imageUrl: event.imageUrl,
+      tokenCount: event.tokenCount,
+      dateStart: event.dateStart,
+      dateEnd: event.dateEnd,
+    };
+
+    const metadataUrl = await postToIPFS(JSON.stringify(metadata));
+
+    // mint NFTs
+    const { networkId, tokenCount } = event;
+    // TODO loop to allow for smaller ticket count
+    const ticketSequences = await this.prepareTickets(networkId, tokenCount);
     const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
     try {
@@ -692,12 +763,13 @@ export class Attendify {
             {
               TransactionType: "NFTokenMint",
               Account: wallet.classicAddress,
-              URI: convertStringToHex(uri),
+              URI: convertStringToHex(metadataUrl),
               Flags: NFTokenMintFlags.tfBurnable,
               TransferFee: 0,
               Sequence: 0,
               TicketSequence: ticketSequences[i],
               NFTokenTaxon: eventId,
+              Issuer: event.ownerWalletAddress,
             },
             {
               failHard: true,
@@ -718,42 +790,36 @@ export class Attendify {
         throw new AttendifyError("NFT mint verification failed");
       }
 
-      const depositValue = await this.calcDepositValue(networkId, tokenCount);
+      await db.transaction(async (t) => {
+        // update state
+        await event.update(
+          {
+            status: EventStatus.ACTIVE,
+            uri: metadataUrl,
+          },
+          { transaction: t }
+        );
 
-      // add event to database
-      const event = await owner.createEvent({
-        id: eventId,
-        status: EventStatus.ACTIVE,
-        networkId: networkId,
-        title: metadata.title,
-        description: metadata.description,
-        location: metadata.location,
-        tokenCount: tokenCount,
-        imageUrl: metadata.imageUrl,
-        uri: uri,
-        dateStart: metadata.dateStart,
-        dateEnd: metadata.dateEnd,
-        isManaged: isManaged,
+        // update accounting
+        await event.accounting?.update(
+          {
+            accumulatedTxFees:
+              event.accounting?.accumulatedTxFees + Number(accumulatedTxFees),
+          },
+          { transaction: t }
+        );
+
+        // add NFTs
+        for (let i = 0; i < tokenIds.length; ++i) {
+          await event.createNft(
+            {
+              id: tokenIds[i],
+              issuerWalletAddress: event.ownerWalletAddress,
+            },
+            { transaction: t }
+          );
+        }
       });
-
-      // add accounting
-      await event.createAccounting({
-        depositValue: Number(depositValue),
-        accumulatedTxFees: Number(accumulatedTxFees),
-      });
-
-      // increment next event id
-      this.nextEventId++;
-
-      // add NFTs to database
-      for (let i = 0; i < tokenIds.length; ++i) {
-        await event.createNft({
-          id: tokenIds[i],
-          issuerWalletAddress: wallet.classicAddress,
-        });
-      }
-
-      return event.id;
     } finally {
       client.disconnect();
     }
@@ -761,7 +827,7 @@ export class Attendify {
 
   /**
    * Close or cancel an event
-   * @param networkId - network identifier
+   * @param eventId - event identifier
    * @param burnAll - burn all tokens, including claimed NFTs (cancel event)
    */
   async closeEvent(eventId: number, burnAll?: boolean): Promise<void> {
@@ -924,7 +990,7 @@ export class Attendify {
 
   /**
    * Fetch NFT offers associated with a user from the database
-   * @param eventId - event identifier
+   * @param networkId - network identifier
    * @param walletAddress - wallet address of the user
    * @param limit - maximum number of returned results
    * @returns list of offer json objects (including associated event info)
@@ -1144,7 +1210,7 @@ export class Attendify {
     return users.map((user) => user.toJSON());
   }
 
-  /** 
+  /**
    * Compute platform usage information
    * @param networkId - network identifier
    * @returns usage statistics
