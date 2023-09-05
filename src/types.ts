@@ -13,6 +13,7 @@ export enum WalletType {
 
 export enum EventStatus {
   PENDING,
+  PAID,
   ACTIVE,
   CLOSED,
   CANCELED,

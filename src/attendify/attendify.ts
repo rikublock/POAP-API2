@@ -730,6 +730,9 @@ export class Attendify {
     if (!event) {
       throw new AttendifyError("Invalid event ID");
     }
+    if (event.status !== EventStatus.PAID) {
+      throw new AttendifyError("Event is not paid for");
+    }
 
     // TODO verify we have access to mint on behalf
 
@@ -898,6 +901,54 @@ export class Attendify {
       event.status = EventStatus.CLOSED;
     }
     await event.save();
+  }
+
+  /**
+   * Verify deposit transaction
+   * @param networkId - network identifier
+   * @param txHash - transaction hash
+   * @returns true, if successful
+   */
+  async checkPayment(
+    networkId: NetworkIdentifier,
+    txHash: string
+  ): Promise<boolean> {
+    const [client, wallet] = this.getNetworkConfig(networkId);
+    await client.connect();
+    try {
+      const tx = await client.request({
+        command: "tx",
+        transaction: txHash,
+        // ledger_index: "validated",
+      });
+
+      if (tx.status && tx.status !== "success") {
+        return false;
+      }
+
+      if (!tx.result.validated) {
+        return false;
+      }
+
+      if (tx.result.Memos?.length !== 1) {
+        return false;
+      }
+
+      // TODO CHECK memo
+      // TODO load event, check amounts and currency
+      const data = tx.result.Memos[0].Memo;
+
+      const amount = (tx.result.meta as TransactionMetadata)?.delivered_amount;
+
+      // TODO check
+      // - amount.value == event.depositValue
+      // - amount.currency == "XRP"
+      // - amount.issuer should be null or undefined (not an issued currency)
+    } finally {
+      client.disconnect();
+    }
+
+    return true;
   }
 
   /**
@@ -1270,7 +1321,9 @@ export class Attendify {
     const activeCount = await orm.Event.count({
       where: {
         networkId: NetworkIdentifier.TESTNET,
-        status: EventStatus.ACTIVE,
+        status: {
+          [Op.or]: [EventStatus.PAID, EventStatus.ACTIVE],
+        },
       },
     });
 
@@ -1282,6 +1335,8 @@ export class Attendify {
         },
       },
     });
+
+    // TODO sum slots of all paid+active events -> calc reserve, compare to actual reserve
 
     return {
       users: {
