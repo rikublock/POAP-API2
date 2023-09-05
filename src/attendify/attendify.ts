@@ -25,6 +25,7 @@ import {
   NetworkIdentifier,
   NetworkConfig,
   EventStatus,
+  PlatformStats,
 } from "../types";
 
 /**
@@ -399,12 +400,12 @@ export class Attendify {
    * Check if the vault account has enough balance to create N ledger objects
    * @param networkId - network identifier
    * @param count - number of new objects
-   * @returns true, if account has enough balance
+   * @returns reserve and balance info
    */
   async checkOwnerReserve(
     networkId: NetworkIdentifier,
     count: number
-  ): Promise<boolean> {
+  ): Promise<[bigint, bigint, boolean]> {
     const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
     try {
@@ -423,16 +424,20 @@ export class Attendify {
         ledger_index: "validated",
       });
 
-      const balance = parseFloat(dropsToXrp(info.result.account_data.Balance));
+      const balance = BigInt(info.result.account_data.Balance);
 
       // current account reserves
       const reserve =
-        ledger.reserve_base_xrp +
-        ledger.reserve_inc_xrp * info.result.account_data.OwnerCount;
+        BigInt(xrpToDrops(ledger.reserve_base_xrp)) +
+        BigInt(xrpToDrops(ledger.reserve_inc_xrp)) *
+          BigInt(info.result.account_data.OwnerCount);
 
-      return (
-        count <= Math.floor(balance - reserve - 1 / ledger.reserve_inc_xrp)
-      );
+      const hasBalance =
+        count <=
+        (balance - reserve - BigInt(1)) /
+          BigInt(xrpToDrops(ledger.reserve_inc_xrp));
+
+      return [reserve, balance, hasBalance];
     } finally {
       await client.disconnect();
     }
@@ -552,7 +557,11 @@ export class Attendify {
         return ticketSequences;
       }
 
-      if (!this.checkOwnerReserve(networkId, ticketCount)) {
+      const [reserve, balance, hasBalance] = await this.checkOwnerReserve(
+        networkId,
+        ticketCount
+      );
+      if (!hasBalance) {
         throw new AttendifyError(
           "Insufficient balance to cover owner reserves"
         );
@@ -1133,5 +1142,97 @@ export class Attendify {
       ],
     });
     return users.map((user) => user.toJSON());
+  }
+
+  /** 
+   * Compute platform usage information
+   * @param networkId - network identifier
+   * @returns usage statistics
+   */
+  async getStats(networkId: NetworkIdentifier): Promise<PlatformStats> {
+    const [reserve, balance, hasBalance] = await this.checkOwnerReserve(
+      networkId,
+      0
+    );
+
+    // exclude vault wallet users
+    const userCount = await orm.User.count({
+      where: {
+        walletAddress: {
+          [Op.notIn]: this.networkConfigs
+            .filter((c) => isValidSecret(c.vaultWalletSeed))
+            .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+        },
+      },
+    });
+
+    const organizerCount = await orm.User.count({
+      where: {
+        walletAddress: {
+          [Op.notIn]: this.networkConfigs
+            .filter((c) => isValidSecret(c.vaultWalletSeed))
+            .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+        },
+        isOrganizer: true,
+      },
+    });
+
+    const adminCount = await orm.User.count({
+      where: {
+        walletAddress: {
+          [Op.notIn]: this.networkConfigs
+            .filter((c) => isValidSecret(c.vaultWalletSeed))
+            .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+        },
+        isAdmin: true,
+      },
+    });
+
+    const eventCount = await orm.Event.count({
+      where: {
+        networkId: NetworkIdentifier.TESTNET,
+      },
+    });
+
+    const pendingCount = await orm.Event.count({
+      where: {
+        networkId: NetworkIdentifier.TESTNET,
+        status: EventStatus.PENDING,
+      },
+    });
+
+    const activeCount = await orm.Event.count({
+      where: {
+        networkId: NetworkIdentifier.TESTNET,
+        status: EventStatus.ACTIVE,
+      },
+    });
+
+    const finishedCount = await orm.Event.count({
+      where: {
+        networkId: NetworkIdentifier.TESTNET,
+        status: {
+          [Op.or]: [EventStatus.CANCELED, EventStatus.CLOSED],
+        },
+      },
+    });
+
+    return {
+      users: {
+        total: userCount,
+        organizers: organizerCount,
+        admins: adminCount,
+      },
+      events: {
+        total: eventCount,
+        pending: pendingCount,
+        active: activeCount,
+        finished: finishedCount,
+      },
+      account: {
+        balance: balance.toString(),
+        reserve: reserve.toString(),
+      },
+    };
   }
 }

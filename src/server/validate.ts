@@ -371,3 +371,11 @@ export class APIPostAuthLogin {
   @Length(64, 128)
   signature?: string;
 }
+
+export class APIGetAdminStats {
+  @Expose()
+  @Type(() => Number)
+  @IsEnum(NetworkIdentifier)
+  @NotEquals(NetworkIdentifier.UNKNOWN)
+  networkId: NetworkIdentifier;
+}

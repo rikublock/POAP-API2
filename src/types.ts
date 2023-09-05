@@ -33,3 +33,21 @@ export type Metadata = {
   dateStart: Date;
   dateEnd: Date;
 };
+
+export type PlatformStats = {
+  users: {
+    total: number;
+    organizers: number;
+    admins: number,
+  };
+  events: {
+    total: number;
+    pending: number;
+    active: number;
+    finished: number;
+  };
+  account: {
+    balance: string;
+    reserve: string;
+  };
+};

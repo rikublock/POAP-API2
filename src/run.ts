@@ -9,12 +9,17 @@ import cors from "cors";
 import { validate } from "class-validator";
 import { plainToClass } from "class-transformer";
 import NodeCache from "node-cache";
-import Hashids from "hashids";
 
 import { Attendify } from "./attendify";
 import { postToIPFS } from "./server/ipfs";
-import { WalletType, Metadata, NetworkIdentifier } from "./types";
 import {
+  type Metadata,
+  NetworkIdentifier,
+  type PlatformStats,
+  WalletType,
+} from "./types";
+import {
+  APIGetAdminStats,
   APIGetEventInfo,
   APIGetEventLink,
   APIGetEventMinter,
@@ -977,6 +982,7 @@ export async function main() {
   /**
    * Request platform usage information
    * @route GET /admin/stats
+   * @param networkId - network identifier
    * @returns usage statistics
    */
   app.get(
@@ -985,9 +991,30 @@ export async function main() {
     guardMiddleware("admin"),
     async (req: JWTRequest, res: Response, next: NextFunction) => {
       try {
-        // TODO
+        // verify request data
+        const data = plainToClass(APIGetAdminStats, req.query, {
+          strategy: "exposeAll",
+          excludeExtraneousValues: true,
+        });
+        const errors = await validate(data);
+        if (errors.length > 0) {
+          return next(
+            new ServerError(
+              HttpStatusCode.BadRequest,
+              "Data validation failed",
+              errors
+            )
+          );
+        }
+
+        const key = "_api_admin_stats";
+        let stats = cache.get<PlatformStats>(key);
+        if (!stats) {
+          stats = await AttendifyLib.getStats(data.networkId);
+          cache.set<PlatformStats>(key, stats, 120);
+        }
         res.json({
-          result: true,
+          result: stats,
         });
       } catch (error) {
         return next(error);
