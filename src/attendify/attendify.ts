@@ -3,7 +3,6 @@ import {
   AccountObjectsResponse,
   Client,
   convertStringToHex,
-  dropsToXrp,
   isValidSecret,
   LedgerEntry,
   NFTokenCreateOfferFlags,
@@ -28,6 +27,9 @@ import {
   EventStatus,
   PlatformStats,
 } from "../types";
+
+// tx fee deposit requirement for an event
+const DEPOSIT_FEE = BigInt(xrpToDrops(1));
 
 /**
  * Attendify is an utility library for the Proof of Attendance infrastructure on the XRPL.
@@ -605,10 +607,10 @@ export class Attendify {
    * @param slots - number of event slots
    * @returns deposit requirements
    */
-  async calcDepositValue(
+  async calcDepositValues(
     networkId: NetworkIdentifier,
     slots: number
-  ): Promise<bigint> {
+  ): Promise<[bigint, bigint]> {
     const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
     try {
@@ -621,12 +623,11 @@ export class Attendify {
         throw new AttendifyError("Unable to fetch server info");
       }
 
-      // max NTF offer reserves and 1 XRP for tx fees/creation charge
-      const deposit =
-        BigInt(xrpToDrops(ledger.reserve_inc_xrp)) * BigInt(slots) +
-        BigInt(xrpToDrops(1));
+      // max NTF offer reserves and tx fees
+      const depositReserve =
+        BigInt(xrpToDrops(ledger.reserve_inc_xrp)) * BigInt(slots);
 
-      return deposit;
+      return [depositReserve, DEPOSIT_FEE];
     } finally {
       await client.disconnect();
     }
@@ -677,7 +678,10 @@ export class Attendify {
       throw new AttendifyError("Not enough available event slots");
     }
 
-    const depositValue = await this.calcDepositValue(networkId, tokenCount);
+    const [depositReserveValue, depositFeeValue] = await this.calcDepositValues(
+      networkId,
+      tokenCount
+    );
 
     // add event to database
     const event = await db.transaction(async (t) => {
@@ -702,7 +706,8 @@ export class Attendify {
       // add accounting
       await event.createAccounting(
         {
-          depositValue: Number(depositValue),
+          depositReserveValue: Number(depositReserveValue),
+          depositFeeValue: Number(depositFeeValue),
           accumulatedTxFees: 0,
         },
         { transaction: t }

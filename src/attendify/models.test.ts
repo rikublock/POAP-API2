@@ -83,7 +83,8 @@ describe("Test Models", () => {
   test("create accounting", async () => {
     const event = events[0];
     const accounting = await Accounting.create({
-      depositValue: 500,
+      depositReserveValue: 500,
+      depositFeeValue: 0,
       accumulatedTxFees: 0,
       eventId: event.id,
     });
@@ -102,7 +103,8 @@ describe("Test Models", () => {
   test("create accounting uniqueness", async () => {
     const create = async () => {
       await Accounting.create({
-        depositValue: 500,
+        depositReserveValue: 500,
+        depositFeeValue: 0,
         accumulatedTxFees: 0,
         eventId: events[0].id,
       });
@@ -170,7 +172,8 @@ describe("Test Models", () => {
   test("event create accounting", async () => {
     const event = events[0];
     await event.createAccounting({
-      depositValue: 1000,
+      depositReserveValue: 10 * 1000000,
+      depositFeeValue: 1000000,
       accumulatedTxFees: 0,
     });
 
