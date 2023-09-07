@@ -35,10 +35,12 @@ const DEPOSIT_FEE = BigInt(xrpToDrops(1));
  * Attendify is an utility library for the Proof of Attendance infrastructure on the XRPL.
  */
 export class Attendify {
+  private ready: boolean;
   private nextEventId: number;
   private networkConfigs: NetworkConfig[];
 
   constructor(networkConfigs: NetworkConfig[], nextEventId: number = 0) {
+    this.ready = false;
     this.nextEventId = nextEventId;
     this.networkConfigs = networkConfigs;
   }
@@ -76,6 +78,12 @@ export class Attendify {
         });
       }
     }
+
+    this.ready = true;
+  }
+
+  isReady(): boolean {
+    return this.ready;
   }
 
   /**

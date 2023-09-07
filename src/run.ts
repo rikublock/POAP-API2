@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+
 import { HttpStatusCode } from "axios";
 import type { Request, Response, NextFunction } from "express";
 import express from "express";
@@ -48,10 +50,10 @@ import { AttendifyError } from "./attendify/error";
 import { guardMiddleware } from "./server/guard";
 import { hashids } from "./server/util";
 
-export async function main() {
-  const AttendifyLib = new Attendify(config.attendify.networkConfigs);
-  await AttendifyLib.init();
 
+export async function setup(AttendifyLib: Attendify): Promise<express.Express> {
+  assert(AttendifyLib.isReady());
+  
   const cache = new NodeCache({ stdTTL: 600 });
 
   // init server
@@ -972,6 +974,15 @@ export async function main() {
   );
 
   app.use(errorHandler);
+
+  return app;
+}
+
+export async function main() {
+  const lib = new Attendify(config.attendify.networkConfigs);
+  await lib.init();
+
+  const app = await setup(lib);
 
   app.listen(config.server.port, () => {
     console.log(
