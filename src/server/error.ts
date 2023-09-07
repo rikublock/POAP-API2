@@ -29,8 +29,9 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ) {
-  console.error(err.name, req.path, `"${err.message}"`, (err as any).data);
-  console.error("body:", req.body, "query:", req.query);
+  console.debug(err.name, req.path, `"${err.message}"`, (err as any).data);
+  console.debug("body:", req.body, "query:", req.query);
+  
   if (err instanceof AttendifyError) {
     res
       .status(HttpStatusCode.BadRequest)
