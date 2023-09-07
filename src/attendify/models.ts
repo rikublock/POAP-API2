@@ -48,7 +48,6 @@ export class User extends Model<
   declare email: string | null;
   declare isOrganizer: boolean;
   declare isAdmin: boolean;
-  declare slots: number;
 
   // Note: The expression 'event' is used for events owned (created)
   // by the user and 'attendance' for events the user is participating in.
@@ -110,10 +109,6 @@ User.init(
     },
     isAdmin: {
       type: DataTypes.BOOLEAN,
-      allowNull: false,
-    },
-    slots: {
-      type: DataTypes.INTEGER,
       allowNull: false,
     },
   },

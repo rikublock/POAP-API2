@@ -72,7 +72,6 @@ export class Attendify {
             walletAddress: wallet.classicAddress,
             isOrganizer: false,
             isAdmin: false,
-            slots: 0,
           },
         });
       }
@@ -661,23 +660,6 @@ export class Attendify {
     const eventId = this.nextEventId;
     const tokenCount = metadata.tokenCount;
 
-    // TODO remove
-    // check slot availability
-    const result = await orm.Event.findOne({
-      where: {
-        networkId: networkId,
-        status: EventStatus.ACTIVE,
-        ownerWalletAddress: walletAddress,
-      },
-      attributes: [[db.fn("sum", db.col("tokenCount")), "slots"]],
-      raw: true,
-    });
-
-    const slots = ((result as any)?.slots as number) ?? 0;
-    if (slots + tokenCount > owner.slots) {
-      throw new AttendifyError("Not enough available event slots");
-    }
-
     const [depositReserveValue, depositFeeValue] = await this.calcDepositValues(
       networkId,
       tokenCount
@@ -1157,7 +1139,6 @@ export class Attendify {
           walletAddress: walletAddress,
           isOrganizer: isOrganizer,
           isAdmin: false,
-          slots: 200, // TODO change to 0
         },
       });
       return user.toJSON();
@@ -1192,39 +1173,6 @@ export class Attendify {
       email,
     });
     await user.save();
-  }
-
-  /**
-   * Fetch event slot information of a user
-   * @param networkId - network identifier
-   * @param walletAddress - wallet address of the user
-   * @returns - currently used and max available slots
-   */
-  async getSlots(
-    networkId: NetworkIdentifier,
-    walletAddress: string
-  ): Promise<[number, number]> {
-    const user = await orm.User.findOne({
-      where: { walletAddress: walletAddress },
-    });
-    if (!user) {
-      throw new AttendifyError("Unable to find user");
-    }
-
-    const result = await orm.Event.findOne({
-      where: {
-        ...(networkId !== NetworkIdentifier.UNKNOWN
-          ? { networkId: networkId }
-          : {}),
-        status: EventStatus.ACTIVE,
-        ownerWalletAddress: walletAddress,
-      },
-      attributes: [[db.fn("sum", db.col("tokenCount")), "slots"]],
-      raw: true,
-    });
-    const slots = ((result as any)?.slots as number) ?? 0;
-
-    return [slots, user.slots];
   }
 
   /**

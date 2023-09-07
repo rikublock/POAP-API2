@@ -26,7 +26,6 @@ import {
   APIGetEventsOwned,
   APIGetOffers,
   APIGetUserInfo,
-  APIGetUserSlots,
   APIPostAuthLogin,
   APIPostAuthNonce,
   APIPostEventClaim,
@@ -685,54 +684,6 @@ export async function main() {
         );
         res.json({
           result: true,
-        });
-      } catch (error) {
-        return next(error);
-      }
-    }
-  );
-
-  /**
-   * Request user event slot information
-   * @route GET /user/slots
-   * @param networkId - network identifier
-   * @returns currently used and max available slots
-   */
-  app.get(
-    "/user/slots",
-    authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
-    guardMiddleware("organizer"),
-    async (req: JWTRequest, res: Response, next: NextFunction) => {
-      try {
-        // verify request data
-        const data = plainToClass(
-          APIGetUserSlots,
-          {
-            ...req.query,
-            walletAddress: (req.auth as JwtPayload)?.walletAddress,
-          },
-          {
-            strategy: "exposeAll",
-            excludeExtraneousValues: true,
-          }
-        );
-        const errors = await validate(data);
-        if (errors.length > 0) {
-          return next(
-            new ServerError(
-              HttpStatusCode.BadRequest,
-              "Data validation failed",
-              errors
-            )
-          );
-        }
-
-        const result = await AttendifyLib.getSlots(
-          data.networkId,
-          data.walletAddress
-        );
-        res.json({
-          result: result,
         });
       } catch (error) {
         return next(error);
