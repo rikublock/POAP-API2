@@ -65,19 +65,22 @@ export class Attendify {
     }
 
     // ensure seed wallet users exist
-    for (const config of this.networkConfigs) {
-      if (isValidSecret(config.vaultWalletSeed)) {
-        const wallet = Wallet.fromSeed(config.vaultWalletSeed);
-        await orm.User.findOrCreate({
-          where: { walletAddress: wallet.classicAddress },
-          defaults: {
-            walletAddress: wallet.classicAddress,
-            isOrganizer: false,
-            isAdmin: false,
-          },
-        });
+    await db.transaction(async (t) => {
+      for (const config of this.networkConfigs) {
+        if (isValidSecret(config.vaultWalletSeed)) {
+          const wallet = Wallet.fromSeed(config.vaultWalletSeed);
+          await orm.User.findOrCreate({
+            where: { walletAddress: wallet.classicAddress },
+            defaults: {
+              walletAddress: wallet.classicAddress,
+              isOrganizer: false,
+              isAdmin: false,
+            },
+            transaction: t,
+          });
+        }
       }
-    }
+    });
 
     this.ready = true;
   }
@@ -304,8 +307,11 @@ export class Attendify {
     createOffer: boolean
   ): Promise<void> {
     // check available spots
-    const event = await orm.Event.findOne({
-      where: { id: eventId },
+    const event = await db.transaction(async (t) => {
+      return await orm.Event.findOne({
+        where: { id: eventId },
+        transaction: t,
+      });
     });
     if (!event) {
       throw new AttendifyError("Invalid event ID");
@@ -658,8 +664,11 @@ export class Attendify {
       throw new AttendifyError("Unable to find account on the XRPL");
     }
 
-    const owner = await orm.User.findOne({
-      where: { walletAddress: walletAddress },
+    const owner = await db.transaction(async (t) => {
+      return await orm.User.findOne({
+        where: { walletAddress: walletAddress },
+        transaction: t,
+      });
     });
     if (!owner) {
       throw new AttendifyError("Unable to find user");
@@ -718,9 +727,12 @@ export class Attendify {
    * @returns
    */
   async mintEvent(eventId: number): Promise<void> {
-    const event = await orm.Event.findOne({
-      where: { id: eventId },
-      include: [orm.Event.associations.accounting],
+    const event = await db.transaction(async (t) => {
+      return await orm.Event.findOne({
+        where: { id: eventId },
+        include: [orm.Event.associations.accounting],
+        transaction: t,
+      });
     });
     if (!event) {
       throw new AttendifyError("Invalid event ID");
@@ -988,23 +1000,26 @@ export class Attendify {
     walletAddress: string,
     limit: number = 100
   ): Promise<any[]> {
-    const events = await orm.Event.findAll({
-      order: [["id", "DESC"]],
-      limit: limit,
-      where: {
-        ...(networkId !== NetworkIdentifier.UNKNOWN
-          ? { networkId: networkId }
-          : {}),
-        ownerWalletAddress: walletAddress,
-      },
-      include: [
-        orm.Event.associations.accounting,
-        {
-          association: orm.Event.associations.attendees,
-          through: { attributes: [] }, // exclude: 'Participation'
+    const events = await db.transaction(async (t) => {
+      return await orm.Event.findAll({
+        order: [["id", "DESC"]],
+        limit: limit,
+        where: {
+          ...(networkId !== NetworkIdentifier.UNKNOWN
+            ? { networkId: networkId }
+            : {}),
+          ownerWalletAddress: walletAddress,
         },
-        orm.Event.associations.owner,
-      ],
+        include: [
+          orm.Event.associations.accounting,
+          {
+            association: orm.Event.associations.attendees,
+            through: { attributes: [] }, // exclude: 'Participation'
+          },
+          orm.Event.associations.owner,
+        ],
+        transaction: t,
+      });
     });
     return events.map((event) => event.toJSON());
   }
@@ -1019,17 +1034,20 @@ export class Attendify {
     networkId: NetworkIdentifier,
     walletAddress?: string
   ): Promise<any[]> {
-    const events = await orm.Event.findAll({
-      where: {
-        status: EventStatus.ACTIVE,
-        dateEnd: {
-          [Op.lt]: Date.now(),
+    const events = await db.transaction(async (t) => {
+      return await orm.Event.findAll({
+        where: {
+          status: EventStatus.ACTIVE,
+          dateEnd: {
+            [Op.lt]: Date.now(),
+          },
+          ...(networkId !== NetworkIdentifier.UNKNOWN
+            ? { networkId: networkId }
+            : {}),
+          ...(walletAddress ? { ownerWalletAddress: walletAddress } : {}),
         },
-        ...(networkId !== NetworkIdentifier.UNKNOWN
-          ? { networkId: networkId }
-          : {}),
-        ...(walletAddress ? { ownerWalletAddress: walletAddress } : {}),
-      },
+        transaction: t,
+      });
     });
     return events.map((event) => event.toJSON());
   }
@@ -1046,28 +1064,31 @@ export class Attendify {
     walletAddress: string,
     limit: number = 100
   ): Promise<any[]> {
-    const offers = await orm.Claim.findAll({
-      order: [["id", "DESC"]],
-      limit: limit,
-      where: {
-        ownerWalletAddress: walletAddress,
-      },
-      include: [
-        {
-          association: orm.Claim.associations.token,
-          include: [
-            {
-              association: orm.NFT.associations.event,
-              where: {
-                ...(networkId !== NetworkIdentifier.UNKNOWN
-                  ? { networkId: networkId }
-                  : {}),
-              },
-            },
-          ],
-          required: true,
+    const offers = await db.transaction(async (t) => {
+      return await orm.Claim.findAll({
+        order: [["id", "DESC"]],
+        limit: limit,
+        where: {
+          ownerWalletAddress: walletAddress,
         },
-      ],
+        include: [
+          {
+            association: orm.Claim.associations.token,
+            include: [
+              {
+                association: orm.NFT.associations.event,
+                where: {
+                  ...(networkId !== NetworkIdentifier.UNKNOWN
+                    ? { networkId: networkId }
+                    : {}),
+                },
+              },
+            ],
+            required: true,
+          },
+        ],
+        transaction: t,
+      });
     });
     return offers.map((offer) => offer.toJSON());
   }
@@ -1082,16 +1103,19 @@ export class Attendify {
     eventId: number,
     walletAddress?: string
   ): Promise<any | undefined> {
-    const event = await orm.Event.findOne({
-      where: { id: eventId },
-      include: [
-        orm.Event.associations.accounting,
-        orm.Event.associations.owner,
-        {
-          association: orm.Event.associations.attendees,
-          through: { attributes: [] }, // exclude: 'Participation'
-        },
-      ],
+    const event = await db.transaction(async (t) => {
+      return await orm.Event.findOne({
+        where: { id: eventId },
+        include: [
+          orm.Event.associations.accounting,
+          orm.Event.associations.owner,
+          {
+            association: orm.Event.associations.attendees,
+            through: { attributes: [] }, // exclude: 'Participation'
+          },
+        ],
+        transaction: t,
+      });
     });
 
     // if managed, restrict access to owner or attendee
@@ -1140,20 +1164,24 @@ export class Attendify {
       ],
     };
 
-    if (allowCreation) {
-      const [user, created] = await orm.User.findOrCreate({
-        ...options,
-        defaults: {
-          walletAddress: walletAddress,
-          isOrganizer: isOrganizer,
-          isAdmin: false,
-        },
-      });
-      return user.toJSON();
-    } else {
-      const user = await orm.User.findOne(options);
-      return user?.toJSON();
-    }
+    const user = await db.transaction(async (t) => {
+      if (allowCreation) {
+        const [result, created] = await orm.User.findOrCreate({
+          ...options,
+          defaults: {
+            walletAddress: walletAddress,
+            isOrganizer: isOrganizer,
+            isAdmin: false,
+          },
+          transaction: t,
+        });
+        return result;
+      } else {
+        const result = await orm.User.findOne({ ...options, transaction: t });
+        return result;
+      }
+    });
+    return user?.toJSON();
   }
 
   /**
@@ -1169,18 +1197,24 @@ export class Attendify {
     lastName: string | null,
     email: string | null
   ): Promise<void> {
-    const user = await orm.User.findOne({
-      where: {
-        walletAddress: walletAddress,
-      },
-      rejectOnEmpty: true,
+    await db.transaction(async (t) => {
+      const user = await orm.User.findOne({
+        where: {
+          walletAddress: walletAddress,
+        },
+        rejectOnEmpty: true,
+        transaction: t,
+      });
+
+      await user.update(
+        {
+          firstName,
+          lastName,
+          email,
+        },
+        { transaction: t }
+      );
     });
-    await user.update({
-      firstName,
-      lastName,
-      email,
-    });
-    await user.save();
   }
 
   /**
@@ -1189,15 +1223,18 @@ export class Attendify {
    * @returns list of user json objects
    */
   async getUsers(networkId: NetworkIdentifier): Promise<any[]> {
-    const users = await orm.User.findAll({
-      order: [["walletAddress", "ASC"]],
-      where: {
-        walletAddress: {
-          [Op.notIn]: this.networkConfigs
-            .filter((c) => isValidSecret(c.vaultWalletSeed))
-            .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+    const users = await db.transaction(async (t) => {
+      return await orm.User.findAll({
+        order: [["walletAddress", "ASC"]],
+        where: {
+          walletAddress: {
+            [Op.notIn]: this.networkConfigs
+              .filter((c) => isValidSecret(c.vaultWalletSeed))
+              .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+          },
         },
-      },
+        transaction: t,
+      });
     });
     return users.map((user) => user.toJSON());
   }
@@ -1208,24 +1245,27 @@ export class Attendify {
    * @returns list of user json objects
    */
   async getOrganizers(networkId: NetworkIdentifier): Promise<any[]> {
-    const users = await orm.User.findAll({
-      order: [["walletAddress", "ASC"]],
-      where: {
-        walletAddress: {
-          [Op.notIn]: this.networkConfigs
-            .filter((c) => isValidSecret(c.vaultWalletSeed))
-            .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+    const users = await db.transaction(async (t) => {
+      return await orm.User.findAll({
+        order: [["walletAddress", "ASC"]],
+        where: {
+          walletAddress: {
+            [Op.notIn]: this.networkConfigs
+              .filter((c) => isValidSecret(c.vaultWalletSeed))
+              .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+          },
+          isOrganizer: true,
         },
-        isOrganizer: true,
-      },
-      include: [
-        orm.User.associations.events,
-        {
-          association: orm.User.associations.events,
-          include: [orm.Event.associations.accounting],
-          required: true,
-        },
-      ],
+        include: [
+          orm.User.associations.events,
+          {
+            association: orm.User.associations.events,
+            include: [orm.Event.associations.accounting],
+            required: true,
+          },
+        ],
+        transaction: t,
+      });
     });
     return users.map((user) => user.toJSON());
   }
