@@ -628,7 +628,8 @@ export async function main() {
 
         const result = await AttendifyLib.getUser(
           data.walletAddress,
-          data.includeEvents,
+          Boolean(data.includeEvents),
+          false,
           false
         );
         res.json({
@@ -849,6 +850,7 @@ export async function main() {
    * @param walletType - wallet used for authentication (e.g. Xumm or Gem)
    * @param data - temporary authentication token or signed message
    * @param signature - optional signature (required for the Gem wallet)
+   * @param claimFlow - login from the NFT claim flow (do not add organizer permissions)
    * @returns jwt authentication token
    */
   app.post(
@@ -874,7 +876,8 @@ export async function main() {
         const user = await AttendifyLib.getUser(
           data.walletAddress,
           false,
-          true
+          true,
+          !data.claimFlow
         );
         const permissions: Permission[] = [
           "attendee",

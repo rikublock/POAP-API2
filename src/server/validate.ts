@@ -370,6 +370,10 @@ export class APIPostAuthLogin {
   @IsHexadecimal()
   @Length(64, 128)
   signature?: string;
+
+  @Expose()
+  @IsBoolean()
+  claimFlow: boolean;
 }
 
 export class APIGetAdminStats {

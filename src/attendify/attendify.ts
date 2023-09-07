@@ -1126,12 +1126,15 @@ export class Attendify {
    * Fetch a specific user from the database
    * @param walletAddress - wallet address of the user
    * @param includeEvents - include a list of events the user is attending
+   * @param allowCreation - create new user, if it doesn't exist
+   * @param isOrganizer - when creating a new user, add organizer permissions
    * @returns - user json object
    */
   async getUser(
     walletAddress: string,
-    includeEvents: boolean = false,
-    allowCreation: boolean = false
+    includeEvents: boolean,
+    allowCreation: boolean,
+    isOrganizer: boolean
   ): Promise<any | undefined> {
     const options = {
       where: { walletAddress: walletAddress },
@@ -1147,14 +1150,13 @@ export class Attendify {
       ],
     };
 
-    // TODO this never returns associated events
     if (allowCreation) {
       const [user, created] = await orm.User.findOrCreate({
         ...options,
         defaults: {
           walletAddress: walletAddress,
-          isOrganizer: true, // TODO change to false
-          isAdmin: true, // TODO change to false
+          isOrganizer: isOrganizer,
+          isAdmin: false,
           slots: 200, // TODO change to 0
         },
       });
