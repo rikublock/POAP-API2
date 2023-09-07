@@ -1095,6 +1095,7 @@ export class Attendify {
     const event = await orm.Event.findOne({
       where: { id: eventId },
       include: [
+        orm.Event.associations.accounting,
         orm.Event.associations.owner,
         {
           association: orm.Event.associations.attendees,
@@ -1111,6 +1112,11 @@ export class Attendify {
       ) {
         return undefined;
       }
+    }
+
+    // if owner, add accounting info
+    if (event && event.ownerWalletAddress !== walletAddress) {
+      event.accounting = undefined;
     }
 
     return event?.toJSON();
