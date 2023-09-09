@@ -364,6 +364,19 @@ export class APIPostAuthLogin {
   claimFlow: boolean;
 }
 
+export class APIPostPaymentCheck {
+  @Expose()
+  @Type(() => Number)
+  @IsEnum(NetworkIdentifier)
+  @NotEquals(NetworkIdentifier.UNKNOWN)
+  networkId: NetworkIdentifier;
+
+  @Expose()
+  @IsHexadecimal()
+  @Length(64, 66)
+  txHash: string;
+}
+
 export class APIGetAdminStats {
   @Expose()
   @Type(() => Number)

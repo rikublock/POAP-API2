@@ -47,6 +47,7 @@ import {
   APIPostEventCreate,
   APIPostEventInvite,
   APIPostEventJoin,
+  APIPostPaymentCheck,
   APIPostUserUpdate,
 } from "./validate";
 
@@ -923,6 +924,48 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
             result: null,
           });
         }
+      } catch (error) {
+        return next(error);
+      }
+    }
+  );
+
+  /**
+   * Verify an event deposit transaction
+   * @route POST /payment/check
+   * @param networkId - network identifier
+   * @param txHash - transaction hash
+   * @returns true, if the payment was successful
+   */
+  app.post(
+    "/payment/check",
+    authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
+    guardMiddleware("organizer"),
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        // verify request data
+        const data = plainToClass(APIPostPaymentCheck, req.body, {
+          strategy: "exposeAll",
+          excludeExtraneousValues: true,
+        });
+        const errors = await validate(data);
+        if (errors.length > 0) {
+          return next(
+            new ServerError(
+              HttpStatusCode.BadRequest,
+              "Data validation failed",
+              errors
+            )
+          );
+        }
+
+        const success = await AttendifyLib.checkPayment(
+          data.networkId,
+          data.txHash
+        );
+        res.json({
+          result: success,
+        });
       } catch (error) {
         return next(error);
       }

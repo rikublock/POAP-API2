@@ -8,6 +8,7 @@ import {
   NFTokenCreateOfferFlags,
   NFTokenMint,
   NFTokenMintFlags,
+  Payment,
   RippledError,
   TransactionMetadata,
   TxResponse,
@@ -791,7 +792,15 @@ export class Attendify {
         );
       }
 
-      const txs = await Promise.all(promises);
+      let txs: TxResponse<NFTokenMint>[];
+      try {
+        txs = await Promise.all(promises);
+      } catch (err) {
+        // TODO close event
+        throw err;
+        return;
+      }
+
       const tokenIds = txs.map((tx) => (tx.result.meta as any).nftoken_id);
       const accumulatedTxFees = txs.reduce<bigint>(
         (accumulator, tx) => accumulator + BigInt(tx.result.Fee || "0"),
@@ -857,6 +866,7 @@ export class Attendify {
     if (!event || !event.nfts) {
       throw new AttendifyError("Unable to find event");
     }
+    // TODO allow pending events to be canceled without burning any NFT
     if (event.status !== EventStatus.ACTIVE) {
       throw new AttendifyError("Event is not active");
     }
@@ -910,13 +920,15 @@ export class Attendify {
       event.status = EventStatus.CLOSED;
     }
     await event.save();
+
+    // TODO return deposit, if necessary
   }
 
   /**
-   * Verify deposit transaction
+   * Verify an event deposit transaction
    * @param networkId - network identifier
    * @param txHash - transaction hash
-   * @returns true, if successful
+   * @returns true, if the payment was successful
    */
   async checkPayment(
     networkId: NetworkIdentifier,
@@ -925,12 +937,14 @@ export class Attendify {
     const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
     try {
-      const tx = await client.request({
+      const tx = (await client.request({
         command: "tx",
         transaction: txHash,
+        // TODO how to get validated tx ? maybe loop a couple times?
         // ledger_index: "validated",
-      });
+      })) as TxResponse<Payment>;
 
+      // check basic
       if (tx.status && tx.status !== "success") {
         return false;
       }
@@ -939,20 +953,128 @@ export class Attendify {
         return false;
       }
 
+      if (
+        (tx.result.meta as TransactionMetadata)?.TransactionResult !=
+        "tesSUCCESS"
+      ) {
+        return false;
+      }
+
       if (tx.result.Memos?.length !== 1) {
         return false;
       }
 
-      // TODO CHECK memo
-      // TODO load event, check amounts and currency
-      const data = tx.result.Memos[0].Memo;
+      // check memo
+      const memo = tx.result.Memos[0].Memo.MemoData;
+      if (!memo) {
+        return false;
+      }
 
+      const data = Buffer.from(memo, "hex").toString("utf8");
+
+      const re = new RegExp("^deposit event ([0-9]{1,7})$", "i");
+      const match = data.match(re);
+      if (!match) {
+        return false;
+      }
+
+      // TODO lock event, expand transaction
+      // load event
+      const eventId = match[1];
+      const event = await db.transaction(async (t) => {
+        return await orm.Event.findByPk(eventId, {
+          include: [orm.Event.associations.accounting],
+          // lock: true, // TODO
+          // lock: t.LOCK.UPDATE,
+          transaction: t,
+        });
+      });
+
+      if (!event || !event.accounting) {
+        return false;
+      }
+
+      // check destination address
+      if (event.accounting.depositAddress != tx.result.Destination) {
+        return false;
+      }
+
+      // check amount
       const amount = (tx.result.meta as TransactionMetadata)?.delivered_amount;
+      const amountExpected = (
+        event.accounting.depositReserveValue + event.accounting.depositFeeValue
+      ).toString();
+      if (amount != amountExpected) {
+        return false;
+      }
 
-      // TODO check
-      // - amount.value == event.depositValue
-      // - amount.currency == "XRP"
-      // - amount.issuer should be null or undefined (not an issued currency)
+      // check tx hash
+      if (
+        event.accounting.depositTxHash &&
+        event.accounting.depositTxHash != tx.result.hash
+      ) {
+        return false;
+      }
+
+      // TODO rename function to /payment/update ?
+
+      // update event status
+      // TODO does the status check make sense ?
+      if (event.status == EventStatus.PENDING) {
+        await db.transaction(async (t) => {
+          await event.accounting?.update(
+            {
+              depositTxHash: tx.result.hash,
+            },
+            { transaction: t }
+          );
+
+          await event.update(
+            {
+              status: EventStatus.PAID,
+            },
+            { transaction: t }
+          );
+        });
+      }
+
+      // TODO call event minting ? Better let the daemon do it
+      // TODO that would take a long time to return
+
+      return true;
+
+      /**
+       *     tx {
+      id: 1,
+      result: {
+        Account: 'rE3wyBpuyQ3BBjEtkhrWyQzyKjJF1vY5oV',
+        Amount: '11000000',
+        Destination: 'rDnAPDiJk1P4Roh6x7x2eiHsvbbeKtPm3j',
+        Fee: '12',
+        Flags: 0,
+        LastLedgerSequence: 41064203,
+        Memos: [ [Object] ],
+        Sequence: 41007851,
+        SigningPubKey: 'ED0BAB923C2DC782132FA6B56F3823EB4D52156797C7785137BA4E142AEA701792',
+        TransactionType: 'Payment',
+        TxnSignature: '84BD193691A46F981119334E36029176195995DEC803283FFE582E44F4D89DD3B79F41CD340B4DC0CF0FAAD2CD48F83ABF83D27F024856D0B8D966626C3AF809',
+        ctid: 'C27296F900060001',
+        date: 747573120,
+        hash: '611263331CBB6E5B863162E83B70926F44032A69CB91881870397600B0ABD258',
+        inLedger: 41064185,
+        ledger_index: 41064185,
+        meta: {
+          AffectedNodes: [Array],
+          TransactionIndex: 6,
+          TransactionResult: 'tesSUCCESS',
+          delivered_amount: '11000000'
+        },
+        validated: true
+      },
+      type: 'response'
+    }
+
+       */
     } finally {
       client.disconnect();
     }

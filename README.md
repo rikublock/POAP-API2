@@ -67,6 +67,7 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
   - POST `/auth/nonce` - request a login nonce
   - POST `/auth/login` - login, request jwt 
   - POST `/auth/refresh` - refresh jwt
+  - POST `/payment/check` - verify an event deposit transaction
   - GET `/admin/stats` - fetch platform usage statistics
 - support for alternative IPFS provider (web3.storage)
 - many more overall code improvements
