@@ -25,6 +25,7 @@ describe("express API", () => {
     url: "wss://s.altnet.rippletest.net:51233/",
     vaultWalletSeed: "sEd7a9r3UWGLSV6HkKmF3xiCTTi7UHw", // rDnAPDiJk1P4Roh6x7x2eiHsvbbeKtPm3j
   };
+  const timeout = 30000;
 
   const PermissionError = new ServerError(
     HttpStatusCode.Forbidden,
@@ -48,74 +49,94 @@ describe("express API", () => {
     await db.sync({ force: true });
   });
 
-  test("GET /auth/heartbeat", async () => {
-    const response = await request(app).get("/auth/heartbeat");
+  test(
+    "GET /auth/heartbeat",
+    async () => {
+      const response = await request(app).get("/auth/heartbeat");
 
-    expect(response.statusCode).toBe(HttpStatusCode.Ok);
-    expect(response.body).toEqual({ result: true });
-  });
+      expect(response.statusCode).toBe(HttpStatusCode.Ok);
+      expect(response.body).toEqual({ result: true });
+    },
+    timeout
+  );
 
-  test("POST /auth/refresh", async () => {
-    const token = await generateToken(wallet.address, [], true);
-    const response = await request(app)
-      .post("/auth/refresh")
-      .set("Authorization", `Bearer ${token}`);
+  test(
+    "POST /auth/refresh",
+    async () => {
+      const token = await generateToken(wallet.address, [], true);
+      const response = await request(app)
+        .post("/auth/refresh")
+        .set("Authorization", `Bearer ${token}`);
 
-    expect(response.statusCode).toBe(HttpStatusCode.Ok);
-    expect(typeof response.body.result).toBe("string");
-  });
+      expect(response.statusCode).toBe(HttpStatusCode.Ok);
+      expect(typeof response.body.result).toBe("string");
+    },
+    timeout
+  );
 
-  test("POST /event/create", async () => {
-    // create user db entry
-    await lib.getUser(wallet.address, true, true, true);
+  test(
+    "POST /event/create",
+    async () => {
+      // create user db entry
+      await lib.getUser(wallet.address, true, true, true);
 
-    const token = await generateToken(wallet.address, ["organizer"], true);
-    const response = await request(app)
-      .post("/event/create")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        networkId: networkConfig.networkId,
-        title: "A title",
-        description: "An even better description",
-        location: "By the lake",
-        imageUrl: "https://github.com",
-        tokenCount: 5,
-        dateStart: new Date(),
-        dateEnd: new Date(),
-        isManaged: false,
+      const token = await generateToken(wallet.address, ["organizer"], true);
+      const response = await request(app)
+        .post("/event/create")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          networkId: networkConfig.networkId,
+          title: "A title",
+          description: "An even better description",
+          location: "By the lake",
+          imageUrl: "https://github.com",
+          tokenCount: 5,
+          dateStart: new Date(),
+          dateEnd: new Date(),
+          isManaged: false,
+        });
+
+      expect(response.statusCode).toBe(HttpStatusCode.Ok);
+      expect(response.body).toEqual({ result: { eventId: 1 } });
+    },
+    timeout
+  );
+
+  test(
+    "GET /user/info",
+    async () => {
+      // create user db entry
+      await lib.getUser(wallet.address, true, true, true);
+
+      const token = await generateToken(wallet.address, ["organizer"]);
+      const response = await request(app)
+        .get("/user/info")
+        .set("Authorization", `Bearer ${token}`);
+
+      expect(response.statusCode).toBe(HttpStatusCode.Ok);
+      expect(response.body).toEqual({
+        result: {
+          walletAddress: wallet.address,
+          firstName: null,
+          lastName: null,
+          email: null,
+          isOrganizer: true,
+          isAdmin: false,
+        },
       });
+    },
+    timeout
+  );
 
-    expect(response.statusCode).toBe(HttpStatusCode.Ok);
-    expect(response.body).toEqual({ result: { eventId: 1 } });
-  });
+  test(
+    "GET /user/info - unauthorized",
+    async () => {
+      const response = await request(app).get("/user/info");
 
-  test("GET /user/info", async () => {
-    // create user db entry
-    await lib.getUser(wallet.address, true, true, true);
-
-    const token = await generateToken(wallet.address, ["organizer"]);
-    const response = await request(app)
-      .get("/user/info")
-      .set("Authorization", `Bearer ${token}`);
-
-    expect(response.statusCode).toBe(HttpStatusCode.Ok);
-    expect(response.body).toEqual({
-      result: {
-        walletAddress: wallet.address,
-        firstName: null,
-        lastName: null,
-        email: null,
-        isOrganizer: true,
-        isAdmin: false,
-      },
-    });
-  });
-
-  test("GET /user/info - unauthorized", async () => {
-    const response = await request(app).get("/user/info");
-
-    expect(response.statusCode).toBe(HttpStatusCode.Unauthorized);
-    expect(response.body.result).toBe(null);
-    expect(response.body.error).toBeDefined();
-  });
+      expect(response.statusCode).toBe(HttpStatusCode.Unauthorized);
+      expect(response.body.result).toBe(null);
+      expect(response.body.error).toBeDefined();
+    },
+    timeout
+  );
 });
