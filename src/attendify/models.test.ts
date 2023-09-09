@@ -81,6 +81,7 @@ describe("Test Models", () => {
   test("create accounting", async () => {
     const event = events[0];
     const accounting = await Accounting.create({
+      depositAddress: "rnuxRbi8CKBAKge22JdUsmmQ3MHMw5gCuD",
       depositReserveValue: 500,
       depositFeeValue: 0,
       accumulatedTxFees: 0,
@@ -101,6 +102,7 @@ describe("Test Models", () => {
   test("create accounting uniqueness", async () => {
     const create = async () => {
       await Accounting.create({
+        depositAddress: "rnuxRbi8CKBAKge22JdUsmmQ3MHMw5gCuD",
         depositReserveValue: 500,
         depositFeeValue: 0,
         accumulatedTxFees: 0,
@@ -170,6 +172,7 @@ describe("Test Models", () => {
   test("event create accounting", async () => {
     const event = events[0];
     await event.createAccounting({
+      depositAddress: "rnuxRbi8CKBAKge22JdUsmmQ3MHMw5gCuD",
       depositReserveValue: 10 * 1000000,
       depositFeeValue: 1000000,
       accumulatedTxFees: 0,

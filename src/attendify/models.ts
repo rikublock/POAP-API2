@@ -261,6 +261,7 @@ export class Accounting extends Model<
   InferCreationAttributes<Accounting>
 > {
   declare id: CreationOptional<number>;
+  declare depositAddress: string;
   declare depositReserveValue: number;
   declare depositFeeValue: number;
   declare depositTxHash: CreationOptional<string>;
@@ -283,6 +284,10 @@ Accounting.init(
       autoIncrement: true,
       primaryKey: true,
       allowNull: false,
+    },
+    depositAddress: {
+      type: DataTypes.STRING(35),
+      allowNull: true,
     },
     depositReserveValue: {
       type: DataTypes.BIGINT,

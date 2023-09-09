@@ -677,6 +677,7 @@ export class Attendify {
     const eventId = this.nextEventId;
     const tokenCount = metadata.tokenCount;
 
+    const [client, wallet] = this.getNetworkConfig(networkId);
     const [depositReserveValue, depositFeeValue] = await this.calcDepositValues(
       networkId,
       tokenCount
@@ -705,6 +706,7 @@ export class Attendify {
       // add accounting
       await event.createAccounting(
         {
+          depositAddress: wallet.classicAddress,
           depositReserveValue: Number(depositReserveValue),
           depositFeeValue: Number(depositFeeValue),
           accumulatedTxFees: 0,
