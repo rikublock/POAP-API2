@@ -38,10 +38,6 @@ describe("express API", () => {
     app = await setup(lib);
   });
 
-  afterAll(async () => {
-    await db.close();
-  });
-
   beforeEach(async () => {
     // wipe db
     await db.sync({ force: true });

@@ -16,10 +16,6 @@ describe("Test Models", () => {
     await db.authenticate();
   });
 
-  afterAll(async () => {
-    await db.close();
-  });
-
   beforeEach(async () => {
     // wipe db
     await db.sync({ force: true });
@@ -76,6 +72,40 @@ describe("Test Models", () => {
       isOrganizer: true,
       isAdmin: false,
     });
+  });
+
+  test("transaction rollback", async () => {
+    const address = "rBTwLga3i2gz3doX6Gva3MgEV8ZCD8jjah";
+    // create user
+    const user = await User.create({
+      walletAddress: address,
+      isOrganizer: true,
+      isAdmin: false,
+    });
+    expect(user.isOrganizer).toBe(true);
+
+    const tx = async () => {
+      await db.transaction(async (t) => {
+        const user = await User.findByPk(address, {
+          rejectOnEmpty: true,
+          transaction: t,
+        });
+
+        await user.update(
+          {
+            isOrganizer: false,
+          },
+          { transaction: t }
+        );
+
+        // trigger rollback
+        throw Error();
+      });
+    };
+    expect(await tx).rejects.toThrow(Error);
+
+    const loadedUser = await User.findByPk(address);
+    expect(loadedUser?.isOrganizer).toBe(true);
   });
 
   test("create accounting", async () => {
@@ -289,7 +319,9 @@ describe("Test Models", () => {
     });
 
     expect(results.find((x) => x.claim !== null)?.id).toBe(claim.tokenId);
-    expect(results.filter((x) => x.claim === null).length).toBe(nfts.length - 1);
+    expect(results.filter((x) => x.claim === null).length).toBe(
+      nfts.length - 1
+    );
   });
 
   test("create claim", async () => {
