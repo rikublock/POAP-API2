@@ -12,7 +12,6 @@ type ConfigAttendify = {
     web3StorageToken: string;
   };
   maxTickets: number;
-  maxEventSlots: number;
 };
 
 type ConfigServer = {
@@ -22,6 +21,7 @@ type ConfigServer = {
   jwtSecret: string;
   hashidSalt: string;
   hashidLength: number;
+  maxEventSlots: number;
 };
 
 export type Config = {
@@ -69,7 +69,6 @@ const DEFAULT: Config = {
       web3StorageToken: process.env.IPFS_WEB3_STORAGE_API_TOKEN as string,
     },
     maxTickets: parseInt(process.env.MAX_TICKETS as string),
-    maxEventSlots: parseInt(process.env.MAX_EVENT_SLOTS as string),
   },
   server: {
     port: 4000,
@@ -78,6 +77,7 @@ const DEFAULT: Config = {
     jwtSecret: process.env.JWT_SECRET as string,
     hashidSalt: process.env.HASHID_SALT as string,
     hashidLength: 2,
+    maxEventSlots: parseInt(process.env.MAX_EVENT_SLOTS as string),
   },
 };
 
