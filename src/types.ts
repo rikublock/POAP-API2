@@ -16,7 +16,7 @@ export enum EventStatus {
   PAID,
   ACTIVE,
   CLOSED,
-  CANCELED,
+  REFUNDED,
 }
 
 export type NetworkConfig = {

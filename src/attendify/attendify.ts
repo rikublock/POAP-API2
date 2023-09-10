@@ -7,7 +7,6 @@ import {
   LedgerEntry,
   NFTokenCreateOfferFlags,
   NFTokenMint,
-  NFTokenMintFlags,
   Payment,
   RippledError,
   TransactionMetadata,
@@ -777,7 +776,6 @@ export class Attendify {
               TransactionType: "NFTokenMint",
               Account: wallet.classicAddress,
               URI: convertStringToHex(metadataUrl),
-              Flags: NFTokenMintFlags.tfBurnable,
               TransferFee: 0,
               Sequence: 0,
               TicketSequence: ticketSequences[i],
@@ -849,19 +847,21 @@ export class Attendify {
   /**
    * Close or cancel an event
    * @param eventId - event identifier
-   * @param burnAll - burn all tokens, including claimed NFTs (cancel event)
    */
-  async closeEvent(eventId: number, burnAll?: boolean): Promise<void> {
-    const event = await orm.Event.findOne({
-      where: { id: eventId },
-      include: [
-        orm.Event.associations.owner,
-        {
-          association: orm.Event.associations.nfts,
-          include: [orm.NFT.associations.claim],
-          required: true,
-        },
-      ],
+  async closeEvent(eventId: number): Promise<void> {
+    const event = await db.transaction(async (t) => {
+      return await orm.Event.findOne({
+        where: { id: eventId },
+        include: [
+          orm.Event.associations.owner,
+          {
+            association: orm.Event.associations.nfts,
+            include: [orm.NFT.associations.claim],
+            required: true,
+          },
+        ],
+        transaction: t,
+      });
     });
     if (!event || !event.nfts) {
       throw new AttendifyError("Unable to find event");
@@ -876,18 +876,12 @@ export class Attendify {
     await client.connect();
     try {
       console.debug(`Preparing NFT burn for event ${event.id}`);
-      let tokenIds: string[] = [];
-      if (burnAll) {
-        // based on database
-        tokenIds = event.nfts.map((nft) => nft.id);
-      } else {
-        // based on chain (only currently owned)
-        tokenIds = await this.fetchNFTs(
-          event.networkId,
-          wallet.classicAddress,
-          event.id
-        );
-      }
+      // based on chain (only currently owned)
+      const tokenIds = await this.fetchNFTs(
+        event.networkId,
+        wallet.classicAddress,
+        event.id
+      );
 
       // batch burn
       console.debug(`Batch burning ${tokenIds.length} NFT(s)`);
@@ -913,13 +907,15 @@ export class Attendify {
       client.disconnect();
     }
 
-    // mark as closed/canceled in database
-    if (burnAll) {
-      event.status = EventStatus.CANCELED;
-    } else {
-      event.status = EventStatus.CLOSED;
-    }
-    await event.save();
+    // mark event as closed
+    await db.transaction(async (t) => {
+      await event.update(
+        {
+          status: EventStatus.CLOSED,
+        },
+        { transaction: t }
+      );
+    });
 
     // TODO return deposit, if necessary
   }
@@ -1465,7 +1461,7 @@ export class Attendify {
       where: {
         networkId: NetworkIdentifier.TESTNET,
         status: {
-          [Op.or]: [EventStatus.CANCELED, EventStatus.CLOSED],
+          [Op.or]: [EventStatus.CLOSED, EventStatus.REFUNDED],
         },
       },
     });
