@@ -708,8 +708,8 @@ export class Attendify {
       await event.createAccounting(
         {
           depositAddress: wallet.classicAddress,
-          depositReserveValue: Number(depositReserveValue),
-          depositFeeValue: Number(depositFeeValue),
+          depositReserveValue: depositReserveValue.toString(),
+          depositFeeValue: depositFeeValue.toString(),
           accumulatedTxFees: 0,
         },
         { transaction: t }
@@ -1002,7 +1002,8 @@ export class Attendify {
       // check amount
       const amount = (tx.result.meta as TransactionMetadata)?.delivered_amount;
       const amountExpected = (
-        event.accounting.depositReserveValue + event.accounting.depositFeeValue
+        BigInt(event.accounting.depositReserveValue) +
+        BigInt(event.accounting.depositFeeValue)
       ).toString();
       if (amount != amountExpected) {
         return false;

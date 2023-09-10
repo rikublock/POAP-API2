@@ -262,10 +262,10 @@ export class Accounting extends Model<
 > {
   declare id: CreationOptional<number>;
   declare depositAddress: string;
-  declare depositReserveValue: number;
-  declare depositFeeValue: number;
+  declare depositReserveValue: string;
+  declare depositFeeValue: string;
   declare depositTxHash: CreationOptional<string>;
-  declare refundValue: CreationOptional<number>;
+  declare refundValue: CreationOptional<string>;
   declare refundTxHash: CreationOptional<string>;
   declare accumulatedTxFees: number;
 
@@ -290,11 +290,11 @@ Accounting.init(
       allowNull: true,
     },
     depositReserveValue: {
-      type: DataTypes.BIGINT,
+      type: DataTypes.STRING(19),
       allowNull: false,
     },
     depositFeeValue: {
-      type: DataTypes.BIGINT,
+      type: DataTypes.STRING(19),
       allowNull: false,
     },
     depositTxHash: {
@@ -302,7 +302,7 @@ Accounting.init(
       allowNull: true,
     },
     refundValue: {
-      type: DataTypes.BIGINT,
+      type: DataTypes.STRING(19),
       allowNull: true,
     },
     refundTxHash: {
@@ -310,7 +310,7 @@ Accounting.init(
       allowNull: true,
     },
     accumulatedTxFees: {
-      type: DataTypes.BIGINT,
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
     eventId: {
