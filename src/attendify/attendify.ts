@@ -5,6 +5,7 @@ import {
   convertStringToHex,
   isValidSecret,
   LedgerEntry,
+  NFTokenBurn,
   NFTokenCreateOfferFlags,
   NFTokenMint,
   Payment,
@@ -203,6 +204,7 @@ export class Attendify {
         }
       );
 
+      // TODO accumulate tx fees
       return (tx.result.meta as any).offer_id as string;
     } finally {
       client.disconnect();
@@ -902,7 +904,15 @@ export class Attendify {
         );
       }
 
-      await Promise.all(promises);
+      // TODO accumulate tx fees
+      let txs: TxResponse<NFTokenBurn>[];
+      try {
+        txs = await Promise.all(promises);
+      } catch (err) {
+        // TODO bad
+        throw err;
+        return;
+      }
     } finally {
       client.disconnect();
     }
@@ -1077,6 +1087,76 @@ export class Attendify {
     }
 
     return true;
+  }
+
+  /**
+   * Refund event deposit
+   * @param eventId - event identifier
+   * @returns tx hash
+   */
+  async refundDeposit(eventId: number): Promise<string> {
+    const hash = await db.transaction(async (t) => {
+      const event = await orm.Event.findByPk(eventId, {
+        include: [orm.Event.associations.accounting],
+        lock: true,
+        transaction: t,
+      });
+
+      if (!event || !event.accounting) {
+        throw new AttendifyError("Unable to find event");
+      }
+      if (event.status !== EventStatus.CLOSED) {
+        throw new AttendifyError("Event is not closed");
+      }
+      if (event.accounting.refundValue || event.accounting.refundTxHash) {
+        throw new AttendifyError("Event deposit was already refunded");
+      }
+
+      // account for refund payment tx fee
+      const value = (
+        BigInt(event.accounting.depositReserveValue) +
+        BigInt(event.accounting.depositFeeValue) -
+        BigInt(event.accounting.accumulatedTxFees + 100)
+      ).toString();
+
+      await event.update(
+        {
+          status: EventStatus.REFUNDED,
+        },
+        { transaction: t }
+      );
+
+      const [client, wallet] = this.getNetworkConfig(event.networkId);
+      await client.connect();
+      try {
+        const response = await client.submitAndWait(
+          {
+            TransactionType: "Payment",
+            Account: wallet.classicAddress,
+            Amount: value,
+            Destination: event.ownerWalletAddress,
+          },
+          {
+            failHard: true,
+            wallet: wallet,
+          }
+        );
+
+        await event.accounting?.update(
+          {
+            refundValue: value,
+            refundTxHash: response.result.hash,
+          },
+          { transaction: t }
+        );
+
+        return response.result.hash;
+      } finally {
+        client.disconnect();
+      }
+    });
+
+    return hash;
   }
 
   /**
