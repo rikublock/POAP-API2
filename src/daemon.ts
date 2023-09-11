@@ -3,8 +3,17 @@ import { Attendify } from "./attendify/attendify";
 import { NetworkIdentifier } from "./types";
 import config from "./config";
 
+// TODO listen for tx
+// TODO close canceled events
+// TODO refund closed events
+// TODO add daemon state to db, scan tx since last
+// state: [networkId]: { address, latest ledger, latest hash}
+
 export async function main() {
-  const AttendifyLib = new Attendify(config.attendify.networkConfigs);
+  const AttendifyLib = new Attendify(
+    config.attendify.networkConfigs,
+    config.attendify.maxTickets
+  );
   await AttendifyLib.init();
 
   const running = true;

@@ -11,10 +11,20 @@ export enum WalletType {
   GEM_WALLET,
 }
 
+/**
+ * Event Status Codes
+ * - PENDING: successfully created database entry, awaiting payment
+ * - PAID: received and confirmed deposit payment, awaiting NFT mint (by daemon)
+ * - ACTIVE: successfully minted NFTs, everything is ready to be claimed
+ * - CANCELED: initiated cancellation, awaiting NFT burn (by daemon)
+ * - CLOSED: successfully burnt remaining NFTs, ready to refund deposit (by daemon)
+ * - REFUNDED: successfully refunded deposit
+ */
 export enum EventStatus {
   PENDING,
   PAID,
   ACTIVE,
+  CANCELED,
   CLOSED,
   REFUNDED,
 }

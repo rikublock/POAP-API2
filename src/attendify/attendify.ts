@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+
 import {
   AccountNFTsResponse,
   AccountObjectsResponse,
@@ -10,6 +12,7 @@ import {
   NFTokenMint,
   Payment,
   RippledError,
+  TicketCreate,
   TransactionMetadata,
   TxResponse,
   Wallet,
@@ -30,7 +33,10 @@ import {
 } from "../types";
 
 // tx fee deposit requirement for an event
-const DEPOSIT_FEE = BigInt(xrpToDrops(1));
+export const DEPOSIT_FEE = BigInt(xrpToDrops(1));
+
+// default tx fee in case an exact value is unknown
+export const FALLBACK_TX_FEE = 100n;
 
 /**
  * Attendify is an utility library for the Proof of Attendance infrastructure on the XRPL.
@@ -39,11 +45,17 @@ export class Attendify {
   private ready: boolean;
   private nextEventId: number;
   private networkConfigs: NetworkConfig[];
+  private maxTickets: number;
 
-  constructor(networkConfigs: NetworkConfig[], nextEventId: number = 0) {
+  constructor(
+    networkConfigs: NetworkConfig[],
+    maxTickets: number,
+    nextEventId: number = 0
+  ) {
     this.ready = false;
     this.nextEventId = nextEventId;
     this.networkConfigs = networkConfigs;
+    this.maxTickets = maxTickets;
   }
 
   /**
@@ -452,7 +464,7 @@ export class Attendify {
 
       const hasBalance =
         count <=
-        (balance - reserve - BigInt(1)) /
+        (balance - reserve - BigInt(xrpToDrops(1))) /
           BigInt(xrpToDrops(ledger.reserve_inc_xrp));
 
       return [reserve, balance, hasBalance];
@@ -537,12 +549,12 @@ export class Attendify {
    * Prepare ledger Ticket objects for NFT batch minting
    * @param networkId - network identifier
    * @param target - number of tickets that should be set up
-   * @returns array of at least `target` ticket sequence numbers
+   * @returns array of at least `target` ticket sequence numbers and tx fee costs
    */
   async prepareTickets(
     networkId: NetworkIdentifier,
     target: number
-  ): Promise<number[]> {
+  ): Promise<[number[], bigint]> {
     console.debug(`Preparing ${target} ticket(s)`);
     target = Math.floor(target);
     if (target > 250) {
@@ -572,7 +584,7 @@ export class Attendify {
       const ticketSequences = tickets.map((t) => t.TicketSequence);
       const ticketCount = target - ticketSequences.length;
       if (ticketCount <= 0) {
-        return ticketSequences;
+        return [ticketSequences, 0n];
       }
 
       const [reserve, balance, hasBalance] = await this.checkOwnerReserve(
@@ -587,7 +599,7 @@ export class Attendify {
 
       // create new tickets
       console.debug(`Creating ${ticketCount} new ticket(s)`);
-      const tx = await client.submitAndWait(
+      const tx: TxResponse<TicketCreate> = await client.submitAndWait(
         {
           TransactionType: "TicketCreate",
           Account: wallet.classicAddress,
@@ -610,7 +622,9 @@ export class Attendify {
         }
       });
 
-      return ticketSequences;
+      const accumulatedTxFees = BigInt(tx.result.Fee || FALLBACK_TX_FEE);
+
+      return [ticketSequences, accumulatedTxFees];
     } finally {
       await client.disconnect();
     }
@@ -638,9 +652,16 @@ export class Attendify {
         throw new AttendifyError("Unable to fetch server info");
       }
 
-      // max NTF offer reserves and tx fees
-      const depositReserve =
+      // NFT page reserve (https://xrpl.org/nftokenpage.html#the-reserve-in-practice)
+      // worst case (16 per page), round up to next even integer
+      const pageReserve =
+        BigInt(xrpToDrops(ledger.reserve_inc_xrp)) * (BigInt(slots + 15) / 16n);
+
+      // NFT offer reserve
+      const offerReserve =
         BigInt(xrpToDrops(ledger.reserve_inc_xrp)) * BigInt(slots);
+
+      const depositReserve = pageReserve + offerReserve;
 
       return [depositReserve, DEPOSIT_FEE];
     } finally {
@@ -711,7 +732,7 @@ export class Attendify {
           depositAddress: wallet.classicAddress,
           depositReserveValue: depositReserveValue.toString(),
           depositFeeValue: depositFeeValue.toString(),
-          accumulatedTxFees: 0,
+          accumulatedTxFees: "0",
         },
         { transaction: t }
       );
@@ -745,8 +766,6 @@ export class Attendify {
       throw new AttendifyError("Event is not paid for");
     }
 
-    // TODO verify we have access to mint on behalf
-
     // upload metadata
     const metadata: Metadata = {
       title: event.title,
@@ -762,57 +781,81 @@ export class Attendify {
 
     // mint NFTs
     const { networkId, tokenCount } = event;
-    // TODO loop to allow for smaller ticket count
-    const ticketSequences = await this.prepareTickets(networkId, tokenCount);
+
+    let accumulatedTxFees = 0n;
+    const tokenIds: string[] = [];
+
     const [client, wallet] = this.getNetworkConfig(networkId);
     await client.connect();
     try {
-      // batch mint
       console.debug(`Batch minting ${tokenCount} NFT(s)`);
-      const promises: Promise<TxResponse<NFTokenMint>>[] = [];
-      for (let i = 0; i < tokenCount; ++i) {
-        console.debug(`Minting NFT ${i + 1}/${tokenCount}`);
-        promises.push(
-          client.submitAndWait(
-            {
-              TransactionType: "NFTokenMint",
-              Account: wallet.classicAddress,
-              URI: convertStringToHex(metadataUrl),
-              TransferFee: 0,
-              Sequence: 0,
-              TicketSequence: ticketSequences[i],
-              NFTokenTaxon: eventId,
-              Issuer: event.ownerWalletAddress,
-            },
-            {
-              failHard: true,
-              wallet: wallet,
-            }
-          )
+      const chunkSize = this.maxTickets;
+      for (let i = 0; i < tokenCount; i += chunkSize) {
+        const chunkTokenCount = Math.min(chunkSize, tokenCount - i);
+
+        // prepare tickets
+        const [ticketSequences, txFees] = await this.prepareTickets(
+          event.networkId,
+          chunkTokenCount
         );
+
+        const promises: Promise<TxResponse<NFTokenMint>>[] = [];
+        for (let j = 0; j < chunkTokenCount; ++j) {
+          console.debug(`Minting NFT ${i + j + 1}/${tokenCount}`);
+          promises.push(
+            client.submitAndWait(
+              {
+                TransactionType: "NFTokenMint",
+                Account: wallet.classicAddress,
+                URI: convertStringToHex(metadataUrl),
+                TransferFee: 0,
+                Sequence: 0,
+                TicketSequence: ticketSequences[j],
+                NFTokenTaxon: eventId,
+                Issuer: event.ownerWalletAddress,
+              },
+              {
+                failHard: true,
+                wallet: wallet,
+              }
+            )
+          );
+        }
+
+        let txs: TxResponse<NFTokenMint>[];
+        try {
+          txs = await Promise.all(promises);
+        } catch (err) {
+          console.debug(err);
+          await this.cancelEvent(event.id);
+          throw new AttendifyError("NFT mint failed");
+        }
+
+        const ids = txs.map((tx) => (tx.result.meta as any).nftoken_id);
+        accumulatedTxFees +=
+          txFees +
+          txs.reduce<bigint>(
+            (accumulator, tx) =>
+              accumulator + BigInt(tx.result.Fee || FALLBACK_TX_FEE),
+            BigInt(0)
+          );
+
+        if (ids.length != chunkTokenCount) {
+          await this.cancelEvent(event.id);
+          throw new AttendifyError("NFT mint verification failed");
+        }
+
+        tokenIds.push(...ids);
       }
 
-      let txs: TxResponse<NFTokenMint>[];
-      try {
-        txs = await Promise.all(promises);
-      } catch (err) {
-        // TODO close event
-        throw err;
-        return;
-      }
-
-      const tokenIds = txs.map((tx) => (tx.result.meta as any).nftoken_id);
-      const accumulatedTxFees = txs.reduce<bigint>(
-        (accumulator, tx) => accumulator + BigInt(tx.result.Fee || "0"),
-        BigInt(0)
-      );
-
-      if (tokenIds.length != tokenCount) {
-        throw new AttendifyError("NFT mint verification failed");
-      }
-
+      // mark event as active
       await db.transaction(async (t) => {
-        // update state
+        await event.reload({
+          lock: true,
+          include: [orm.Event.associations.accounting],
+          transaction: t,
+        });
+
         await event.update(
           {
             status: EventStatus.ACTIVE,
@@ -821,11 +864,12 @@ export class Attendify {
           { transaction: t }
         );
 
-        // update accounting
+        assert(event.accounting);
         await event.accounting?.update(
           {
-            accumulatedTxFees:
-              event.accounting?.accumulatedTxFees + Number(accumulatedTxFees),
+            accumulatedTxFees: (
+              BigInt(event.accounting?.accumulatedTxFees) + accumulatedTxFees
+            ).toString(),
           },
           { transaction: t }
         );
@@ -847,7 +891,33 @@ export class Attendify {
   }
 
   /**
-   * Close or cancel an event
+   * Cancel an event
+   * @param eventId - event identifier
+   */
+  async cancelEvent(eventId: number): Promise<void> {
+    await db.transaction(async (t) => {
+      const event = await orm.Event.findOne({
+        where: { id: eventId },
+        transaction: t,
+      });
+
+      if (!event) {
+        throw new AttendifyError("Unable to find event");
+      }
+      if (
+        ![EventStatus.PENDING, EventStatus.PAID, EventStatus.ACTIVE].includes(
+          event.status
+        )
+      ) {
+        throw new AttendifyError("Event is not pending, paid or active");
+      }
+
+      await event.update({ status: EventStatus.CANCELED }, { transaction: t });
+    });
+  }
+
+  /**
+   * Close an event
    * @param eventId - event identifier
    */
   async closeEvent(eventId: number): Promise<void> {
@@ -855,6 +925,7 @@ export class Attendify {
       return await orm.Event.findOne({
         where: { id: eventId },
         include: [
+          orm.Event.associations.accounting,
           orm.Event.associations.owner,
           {
             association: orm.Event.associations.nfts,
@@ -865,13 +936,15 @@ export class Attendify {
         transaction: t,
       });
     });
+
     if (!event || !event.nfts) {
       throw new AttendifyError("Unable to find event");
     }
-    // TODO allow pending events to be canceled without burning any NFT
-    if (event.status !== EventStatus.ACTIVE) {
-      throw new AttendifyError("Event is not active");
+    if (event.status !== EventStatus.CANCELED) {
+      throw new AttendifyError("Event is not canceled");
     }
+
+    let accumulatedTxFees = 0n;
 
     // Note: burning an NFT also removes owner reserves of pending sell offers
     const [client, wallet] = this.getNetworkConfig(event.networkId);
@@ -887,31 +960,54 @@ export class Attendify {
 
       // batch burn
       console.debug(`Batch burning ${tokenIds.length} NFT(s)`);
-      const promises = [];
-      for (const id of tokenIds) {
-        promises.push(
-          client.submitAndWait(
-            {
-              TransactionType: "NFTokenBurn",
-              Account: wallet.classicAddress,
-              NFTokenID: id,
-            },
-            {
-              failHard: true,
-              wallet: wallet,
-            }
-          )
-        );
-      }
+      const chunkSize = this.maxTickets;
+      for (let i = 0; i < tokenIds.length; i += chunkSize) {
+        const chunk = tokenIds.slice(i, i + chunkSize);
+        const tokenCount = Math.min(chunk.length, chunkSize);
 
-      // TODO accumulate tx fees
-      let txs: TxResponse<NFTokenBurn>[];
-      try {
-        txs = await Promise.all(promises);
-      } catch (err) {
-        // TODO bad
-        throw err;
-        return;
+        // prepare tickets
+        const [ticketSequences, txFees] = await this.prepareTickets(
+          event.networkId,
+          tokenCount
+        );
+
+        const promises: Promise<TxResponse<NFTokenBurn>>[] = [];
+        for (let j = 0; j < tokenCount; ++j) {
+          console.debug(`Burning NFT ${i + j + 1}/${tokenIds.length}`);
+          promises.push(
+            client.submitAndWait(
+              {
+                TransactionType: "NFTokenBurn",
+                Account: wallet.classicAddress,
+                Sequence: 0,
+                TicketSequence: ticketSequences[j],
+                NFTokenID: chunk[j],
+              },
+              {
+                failHard: true,
+                wallet: wallet,
+              }
+            )
+          );
+        }
+
+        // TODO possible race condition
+        // trying to burn an NFT with an offer that someone just accepted
+        let txs: TxResponse<NFTokenBurn>[];
+        try {
+          txs = await Promise.all(promises);
+        } catch (err) {
+          console.log(err);
+          throw new AttendifyError("NFT burn failed");
+        }
+
+        accumulatedTxFees +=
+          txFees +
+          txs.reduce<bigint>(
+            (accumulator, tx) =>
+              accumulator + BigInt(tx.result.Fee || FALLBACK_TX_FEE),
+            BigInt(0)
+          );
       }
     } finally {
       client.disconnect();
@@ -919,15 +1015,29 @@ export class Attendify {
 
     // mark event as closed
     await db.transaction(async (t) => {
+      await event.reload({
+        lock: true,
+        include: [orm.Event.associations.accounting],
+        transaction: t,
+      });
+
       await event.update(
         {
           status: EventStatus.CLOSED,
         },
         { transaction: t }
       );
-    });
 
-    // TODO return deposit, if necessary
+      assert(event.accounting);
+      await event.accounting?.update(
+        {
+          accumulatedTxFees: (
+            BigInt(event.accounting?.accumulatedTxFees) + accumulatedTxFees
+          ).toString(),
+        },
+        { transaction: t }
+      );
+    });
   }
 
   /**
@@ -946,8 +1056,6 @@ export class Attendify {
       const tx = (await client.request({
         command: "tx",
         transaction: txHash,
-        // TODO how to get validated tx ? maybe loop a couple times?
-        // ledger_index: "validated",
       })) as TxResponse<Payment>;
 
       // check basic
@@ -960,7 +1068,7 @@ export class Attendify {
       }
 
       if (
-        (tx.result.meta as TransactionMetadata)?.TransactionResult !=
+        (tx.result.meta as TransactionMetadata)?.TransactionResult !==
         "tesSUCCESS"
       ) {
         return false;
@@ -984,109 +1092,66 @@ export class Attendify {
         return false;
       }
 
-      // TODO lock event, expand transaction
       // load event
       const eventId = match[1];
-      const event = await db.transaction(async (t) => {
-        return await orm.Event.findByPk(eventId, {
+      return await db.transaction(async (t) => {
+        const event = await orm.Event.findByPk(eventId, {
           include: [orm.Event.associations.accounting],
-          // lock: true, // TODO
-          // lock: t.LOCK.UPDATE,
+          lock: true,
           transaction: t,
         });
+
+        if (!event || !event.accounting) {
+          return false;
+        }
+        if (event.status !== EventStatus.PENDING) {
+          return false;
+        }
+
+        // check destination address
+        if (event.accounting.depositAddress !== tx.result.Destination) {
+          return false;
+        }
+
+        // check amount
+        const amount = (tx.result.meta as TransactionMetadata)
+          ?.delivered_amount;
+        const amountExpected = (
+          BigInt(event.accounting.depositReserveValue) +
+          BigInt(event.accounting.depositFeeValue)
+        ).toString();
+        if (amount !== amountExpected) {
+          return false;
+        }
+
+        // check tx hash (redundant sanity check)
+        if (
+          event.accounting.depositTxHash &&
+          event.accounting.depositTxHash !== tx.result.hash
+        ) {
+          return false;
+        }
+
+        // update event status
+        await event.accounting?.update(
+          {
+            depositTxHash: tx.result.hash,
+          },
+          { transaction: t }
+        );
+
+        await event.update(
+          {
+            status: EventStatus.PAID,
+          },
+          { transaction: t }
+        );
+
+        return true;
       });
-
-      if (!event || !event.accounting) {
-        return false;
-      }
-
-      // check destination address
-      if (event.accounting.depositAddress != tx.result.Destination) {
-        return false;
-      }
-
-      // check amount
-      const amount = (tx.result.meta as TransactionMetadata)?.delivered_amount;
-      const amountExpected = (
-        BigInt(event.accounting.depositReserveValue) +
-        BigInt(event.accounting.depositFeeValue)
-      ).toString();
-      if (amount != amountExpected) {
-        return false;
-      }
-
-      // check tx hash
-      if (
-        event.accounting.depositTxHash &&
-        event.accounting.depositTxHash != tx.result.hash
-      ) {
-        return false;
-      }
-
-      // TODO rename function to /payment/update ?
-
-      // update event status
-      // TODO does the status check make sense ?
-      if (event.status == EventStatus.PENDING) {
-        await db.transaction(async (t) => {
-          await event.accounting?.update(
-            {
-              depositTxHash: tx.result.hash,
-            },
-            { transaction: t }
-          );
-
-          await event.update(
-            {
-              status: EventStatus.PAID,
-            },
-            { transaction: t }
-          );
-        });
-      }
-
-      // TODO call event minting ? Better let the daemon do it
-      // TODO that would take a long time to return
-
-      return true;
-
-      /**
-       *     tx {
-      id: 1,
-      result: {
-        Account: 'rE3wyBpuyQ3BBjEtkhrWyQzyKjJF1vY5oV',
-        Amount: '11000000',
-        Destination: 'rDnAPDiJk1P4Roh6x7x2eiHsvbbeKtPm3j',
-        Fee: '12',
-        Flags: 0,
-        LastLedgerSequence: 41064203,
-        Memos: [ [Object] ],
-        Sequence: 41007851,
-        SigningPubKey: 'ED0BAB923C2DC782132FA6B56F3823EB4D52156797C7785137BA4E142AEA701792',
-        TransactionType: 'Payment',
-        TxnSignature: '84BD193691A46F981119334E36029176195995DEC803283FFE582E44F4D89DD3B79F41CD340B4DC0CF0FAAD2CD48F83ABF83D27F024856D0B8D966626C3AF809',
-        ctid: 'C27296F900060001',
-        date: 747573120,
-        hash: '611263331CBB6E5B863162E83B70926F44032A69CB91881870397600B0ABD258',
-        inLedger: 41064185,
-        ledger_index: 41064185,
-        meta: {
-          AffectedNodes: [Array],
-          TransactionIndex: 6,
-          TransactionResult: 'tesSUCCESS',
-          delivered_amount: '11000000'
-        },
-        validated: true
-      },
-      type: 'response'
-    }
-
-       */
     } finally {
       client.disconnect();
     }
-
-    return true;
   }
 
   /**
@@ -1116,7 +1181,8 @@ export class Attendify {
       const value = (
         BigInt(event.accounting.depositReserveValue) +
         BigInt(event.accounting.depositFeeValue) -
-        BigInt(event.accounting.accumulatedTxFees + 100)
+        BigInt(event.accounting.accumulatedTxFees) -
+        FALLBACK_TX_FEE
       ).toString();
 
       await event.update(
@@ -1309,11 +1375,12 @@ export class Attendify {
         where: { id: eventId },
         include: [
           orm.Event.associations.accounting,
-          orm.Event.associations.owner,
           {
             association: orm.Event.associations.attendees,
             through: { attributes: [] }, // exclude: 'Participation'
           },
+          orm.Event.associations.nfts,
+          orm.Event.associations.owner,
         ],
         transaction: t,
       });
@@ -1329,9 +1396,11 @@ export class Attendify {
       }
     }
 
-    // if owner, add accounting info
+    // if owner, add more info
     if (event && event.ownerWalletAddress !== walletAddress) {
       event.accounting = undefined;
+      event.attendees = undefined;
+      event.nfts = undefined;
     }
 
     return event?.toJSON();

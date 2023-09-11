@@ -17,13 +17,13 @@ import { ServerError } from "./error";
 describe("express API", () => {
   let lib: Attendify;
   let app: Express;
-  const wallet = Wallet.fromSeed("sEdVWEJ6Ybe2v8czC3Jfs8FFWXVWDe8"); // rE3wyBpuyQ3BBjEtkhrWyQzyKjJF1vY5oV
+  const wallet = Wallet.fromSeed("sEd7Rv3fXNBqiZ2mn7d6mtFdgTs8Nuy"); // r93KCca6YcwznvSrpGPpMeLSdxD3tA1k4L
   const networkConfig: NetworkConfig = {
     networkId: NetworkIdentifier.TESTNET,
     url: "wss://s.altnet.rippletest.net:51233/",
-    vaultWalletSeed: "sEd7a9r3UWGLSV6HkKmF3xiCTTi7UHw", // rDnAPDiJk1P4Roh6x7x2eiHsvbbeKtPm3j
+    vaultWalletSeed: "sEdSomDNjRj49LvW1WwC947K9HVGTaE", // rwMUTs7ivXLVceiWFqXKSuujK84pvYXPgZ
   };
-  const timeout = 30000;
+  const timeout = 60000;
 
   const PermissionError = new ServerError(
     HttpStatusCode.Forbidden,
@@ -33,7 +33,7 @@ describe("express API", () => {
   beforeAll(async () => {
     assert(config.isTesting); // safety to ensure we don't wipe an existing db
 
-    lib = new Attendify([networkConfig]);
+    lib = new Attendify([networkConfig], 5);
     await lib.init();
     app = await setup(lib);
   });
@@ -88,7 +88,7 @@ describe("express API", () => {
           description: "An even better description",
           location: "By the lake",
           imageUrl: "https://github.com",
-          tokenCount: 5,
+          tokenCount: 8,
           dateStart: new Date(),
           dateEnd: new Date(),
           isManaged: false,
@@ -153,7 +153,7 @@ describe("express API", () => {
           description: "An even better description",
           location: "By the lake",
           imageUrl: "https://github.com",
-          tokenCount: 5,
+          tokenCount: 8,
           dateStart: new Date(),
           dateEnd: new Date(),
         },
@@ -172,8 +172,8 @@ describe("express API", () => {
             TransactionType: "Payment",
             Account: wallet.classicAddress,
             Amount: (
-              event.accounting.depositReserveValue +
-              event.accounting.depositFeeValue
+              BigInt(event.accounting.depositReserveValue) +
+              BigInt(event.accounting.depositFeeValue)
             ).toString(),
             Destination: event.accounting.depositAddress,
             Memos: [
@@ -212,6 +212,6 @@ describe("express API", () => {
       expect(response.statusCode).toBe(HttpStatusCode.Ok);
       expect(response.body).toEqual({ result: true });
     },
-    timeout
+    2 * timeout
   );
 });

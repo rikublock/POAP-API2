@@ -66,14 +66,6 @@ describe("Test Models", () => {
     }
   });
 
-  test("create user", async () => {
-    const user = await User.create({
-      walletAddress: "rBTwLga3i2gz3doX6Gva3MgEV8ZCD8jjah",
-      isOrganizer: true,
-      isAdmin: false,
-    });
-  });
-
   test("transaction rollback", async () => {
     const address = "rBTwLga3i2gz3doX6Gva3MgEV8ZCD8jjah";
     // create user
@@ -102,10 +94,18 @@ describe("Test Models", () => {
         throw Error();
       });
     };
-    expect(await tx).rejects.toThrow(Error);
+    await expect(tx).rejects.toThrow(Error);
 
     const loadedUser = await User.findByPk(address);
     expect(loadedUser?.isOrganizer).toBe(true);
+  });
+
+  test("create user", async () => {
+    const user = await User.create({
+      walletAddress: "rBTwLga3i2gz3doX6Gva3MgEV8ZCD8jjah",
+      isOrganizer: true,
+      isAdmin: false,
+    });
   });
 
   test("create accounting", async () => {
@@ -114,7 +114,7 @@ describe("Test Models", () => {
       depositAddress: "rnuxRbi8CKBAKge22JdUsmmQ3MHMw5gCuD",
       depositReserveValue: "500",
       depositFeeValue: "0",
-      accumulatedTxFees: 0,
+      accumulatedTxFees: "0",
       eventId: event.id,
     });
 
@@ -135,7 +135,7 @@ describe("Test Models", () => {
         depositAddress: "rnuxRbi8CKBAKge22JdUsmmQ3MHMw5gCuD",
         depositReserveValue: "500",
         depositFeeValue: "0",
-        accumulatedTxFees: 0,
+        accumulatedTxFees: "0",
         eventId: events[0].id,
       });
     };
@@ -205,7 +205,7 @@ describe("Test Models", () => {
       depositAddress: "rnuxRbi8CKBAKge22JdUsmmQ3MHMw5gCuD",
       depositReserveValue: "10000000",
       depositFeeValue: "1000000",
-      accumulatedTxFees: 0,
+      accumulatedTxFees: "0",
     });
 
     const eventLoaded = await Event.findByPk(event.id, {

@@ -267,7 +267,7 @@ export class Accounting extends Model<
   declare depositTxHash: CreationOptional<string>;
   declare refundValue: CreationOptional<string>;
   declare refundTxHash: CreationOptional<string>;
-  declare accumulatedTxFees: number;
+  declare accumulatedTxFees: string;
 
   declare eventId: ForeignKey<Event["id"]>;
   declare event?: NonAttribute<Event>;
@@ -310,7 +310,7 @@ Accounting.init(
       allowNull: true,
     },
     accumulatedTxFees: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.STRING(19),
       allowNull: true,
     },
     eventId: {

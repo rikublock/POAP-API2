@@ -3,7 +3,10 @@ import config from "./config";
 import { setup } from "./server/app";
 
 export async function main() {
-  const lib = new Attendify(config.attendify.networkConfigs);
+  const lib = new Attendify(
+    config.attendify.networkConfigs,
+    config.attendify.maxTickets
+  );
   await lib.init();
 
   const app = await setup(lib);
