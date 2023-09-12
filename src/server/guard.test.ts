@@ -117,4 +117,64 @@ describe("Test Guard Middleware", () => {
     expect(nextFunction).toBeCalledTimes(1);
     expect(nextFunction).toBeCalledWith(PermissionError);
   });
+
+  test("required nested array sufficient (single)", async () => {
+    (mockRequest.auth as JwtPayload).permissions = [
+      "attendee",
+      "organizer",
+      "admin",
+    ];
+
+    const middleware = guardMiddleware([["attendee", "organizer"]]);
+    middleware(
+      mockRequest as JWTRequest,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(nextFunction).toBeCalledTimes(1);
+    expect(nextFunction).toBeCalledWith(null);
+  });
+
+  test("required nested array sufficient (multiple)", async () => {
+    (mockRequest.auth as JwtPayload).permissions = ["attendee", "organizer"];
+
+    const middleware = guardMiddleware([["organizer"], ["admin"]]);
+    middleware(
+      mockRequest as JWTRequest,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(nextFunction).toBeCalledTimes(1);
+    expect(nextFunction).toBeCalledWith(null);
+  });
+
+  test("required nested array insufficient (single)", async () => {
+    (mockRequest.auth as JwtPayload).permissions = ["attendee"];
+
+    const middleware = guardMiddleware([["organizer"]]);
+    middleware(
+      mockRequest as JWTRequest,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(nextFunction).toBeCalledTimes(1);
+    expect(nextFunction).toBeCalledWith(PermissionError);
+  });
+
+  test("required nested array insufficient (multiple)", async () => {
+    (mockRequest.auth as JwtPayload).permissions = ["attendee"];
+
+    const middleware = guardMiddleware([["organizer"], ["admin"]]);
+    middleware(
+      mockRequest as JWTRequest,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(nextFunction).toBeCalledTimes(1);
+    expect(nextFunction).toBeCalledWith(PermissionError);
+  });
 });

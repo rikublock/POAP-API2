@@ -51,6 +51,7 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
 - new API endpoints:
   - GET `/event/minter` - fetch authorized minter info
   - POST `/event/create` - create a new event
+  - POST `/event/cancel` - cancel an event
   - POST `/event/join` - join an existing event
   - POST `/event/claim` - claim NFT for an event
   - POST `/event/invite` - add new participants to an event

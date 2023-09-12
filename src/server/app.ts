@@ -43,6 +43,7 @@ import {
   APIGetUserInfo,
   APIPostAuthLogin,
   APIPostAuthNonce,
+  APIPostEventCancel,
   APIPostEventClaim,
   APIPostEventCreate,
   APIPostEventInvite,
@@ -115,7 +116,7 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
   );
 
   /**
-   * Create a new event and uploads metadata to IPFS
+   * Create a new event
    * @route POST /event/create
    * @param networkId - network identifier
    * @param tokenCount - number of NFT tokens to mint
@@ -185,9 +186,54 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
   );
 
   /**
+   * Cancel an existing event
+   * @route POST /event/cancel
+   * @param eventId - event identifier
+   * @returns true, if the operation was successful
+   */
+  app.post(
+    "/event/cancel",
+    authMiddleware({ secret: config.server.jwtSecret, algorithms: ["HS256"] }),
+    guardMiddleware([["organizer"], ["admin"]]),
+    async (req: JWTRequest, res: Response, next: NextFunction) => {
+      try {
+        // verify request data
+        const data = plainToClass(
+          APIPostEventCancel,
+          {
+            ...req.body,
+            walletAddress: (req.auth as JwtPayload)?.walletAddress,
+          },
+          {
+            strategy: "exposeAll",
+            excludeExtraneousValues: true,
+          }
+        );
+        const errors = await validate(data);
+        if (errors.length > 0) {
+          return next(
+            new ServerError(
+              HttpStatusCode.BadRequest,
+              "Data validation failed",
+              errors
+            )
+          );
+        }
+
+        await AttendifyLib.cancelEvent(data.eventId);
+        res.json({
+          result: true,
+        });
+      } catch (error) {
+        return next(error);
+      }
+    }
+  );
+
+  /**
    * Sign up for an event
    * @route POST /event/join
-   * @param eventId - event identifier
+   * @param maskedEventId - masked event identifier
    * @param createOffer - immediately create an NFT sell offer
    * @returns offer json object
    */
@@ -249,7 +295,7 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
   /**
    * Claim an NFT offer
    * @route POST /event/claim
-   * @param eventId - masked event identifier
+   * @param maskedEventId - masked event identifier
    * @returns offer json object
    */
   app.post(

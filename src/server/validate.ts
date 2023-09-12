@@ -171,6 +171,17 @@ export class APIPostEventCreate {
   isManaged: boolean;
 }
 
+export class APIPostEventCancel {
+  @Expose()
+  @IsXrpAddress()
+  walletAddress: string;
+
+  @Expose()
+  @IsInt()
+  @Min(1)
+  eventId: number;
+}
+
 export class APIPostEventJoin {
   @Expose()
   @IsXrpAddress()
