@@ -161,6 +161,8 @@ describe("express API", () => {
       );
 
       const event = await lib.getEvent(eventId, wallet.classicAddress);
+      expect(event).toBeDefined();
+      assert(event);
 
       // make payment
       let hash: string;

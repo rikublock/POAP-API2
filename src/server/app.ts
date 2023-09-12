@@ -878,6 +878,8 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
           true,
           !data.claimFlow
         );
+        assert(user);
+
         const permissions: Permission[] = [
           "attendee",
           ...(user.isOrganizer ? ["organizer" as Permission] : []),

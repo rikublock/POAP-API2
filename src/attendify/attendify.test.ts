@@ -118,6 +118,8 @@ describe("attendify API", () => {
       await lib.mintEvent(eventId);
 
       let event = await lib.getEvent(eventId, walletAuthorized.classicAddress);
+      expect(event).toBeDefined();
+      assert(event);
       expect(event.status).toBe(EventStatus.ACTIVE);
       expect(event.uri).toBeDefined();
       expect(event.accounting).toBeDefined();
@@ -131,6 +133,8 @@ describe("attendify API", () => {
       await lib.closeEvent(eventId);
 
       event = await lib.getEvent(eventId, walletAuthorized.classicAddress);
+      expect(event).toBeDefined();
+      assert(event);
       expect(event.status).toBe(EventStatus.CLOSED);
       expect(BigInt(event.accounting.accumulatedTxFees)).toBeGreaterThan(
         BigInt(2 * (tokenCount + 2) * 10)
@@ -184,7 +188,7 @@ describe("attendify API", () => {
       }).rejects.toThrow(AttendifyError);
 
       const event = await lib.getEvent(eventId, wallet.classicAddress);
-      expect(event.status).toBe(EventStatus.CANCELED);
+      expect(event?.status).toBe(EventStatus.CANCELED);
     },
     3 * timeout
   );
@@ -237,6 +241,8 @@ describe("attendify API", () => {
       });
 
       let event = await lib.getEvent(eventId, walletAuthorized.classicAddress);
+      expect(event).toBeDefined();
+      assert(event);
 
       // make payment
       const client = new Client(networkConfig.url);
@@ -271,6 +277,8 @@ describe("attendify API", () => {
       const hash = await lib.refundDeposit(eventId);
 
       event = await lib.getEvent(eventId, walletAuthorized.classicAddress);
+      expect(event).toBeDefined();
+      assert(event);
       expect(event.status).toBe(EventStatus.REFUNDED);
       expect(event.accounting).toBeDefined();
       expect(event.accounting?.refundValue).toBe(value);

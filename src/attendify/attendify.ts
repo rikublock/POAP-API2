@@ -1281,7 +1281,7 @@ export class Attendify {
   async getEventsAll(
     networkId: NetworkIdentifier,
     limit: number = 100
-  ): Promise<any[]> {
+  ): Promise<Record<string, any>[]> {
     const events = await orm.Event.findAll({
       order: [["id", "DESC"]],
       limit: limit,
@@ -1313,7 +1313,7 @@ export class Attendify {
     networkId: NetworkIdentifier,
     walletAddress: string,
     limit: number = 100
-  ): Promise<any[]> {
+  ): Promise<Record<string, any>[]> {
     const events = await db.transaction(async (t) => {
       return await orm.Event.findAll({
         order: [["id", "DESC"]],
@@ -1347,7 +1347,7 @@ export class Attendify {
   async getEventsExpired(
     networkId: NetworkIdentifier,
     walletAddress?: string
-  ): Promise<any[]> {
+  ): Promise<Record<string, any>[]> {
     const events = await db.transaction(async (t) => {
       return await orm.Event.findAll({
         where: {
@@ -1377,7 +1377,7 @@ export class Attendify {
     networkId: NetworkIdentifier,
     walletAddress: string,
     limit: number = 100
-  ): Promise<any[]> {
+  ): Promise<Record<string, any>[]> {
     const offers = await db.transaction(async (t) => {
       return await orm.Claim.findAll({
         order: [["id", "DESC"]],
@@ -1416,7 +1416,7 @@ export class Attendify {
   async getEvent(
     eventId: number,
     walletAddress?: string
-  ): Promise<any | undefined> {
+  ): Promise<Record<string, any> | undefined> {
     const event = await db.transaction(async (t) => {
       return await orm.Event.findOne({
         where: { id: eventId },
@@ -1466,7 +1466,7 @@ export class Attendify {
     includeEvents: boolean,
     allowCreation: boolean,
     isOrganizer: boolean
-  ): Promise<any | undefined> {
+  ): Promise<Record<string, any> | undefined> {
     const options = {
       where: { walletAddress: walletAddress },
       include: [
@@ -1539,7 +1539,7 @@ export class Attendify {
    * @param networkId - network identifier (currently ignored)
    * @returns list of user json objects
    */
-  async getUsers(networkId: NetworkIdentifier): Promise<any[]> {
+  async getUsers(networkId: NetworkIdentifier): Promise<Record<string, any>[]> {
     const users = await db.transaction(async (t) => {
       return await orm.User.findAll({
         order: [["walletAddress", "ASC"]],
@@ -1561,7 +1561,9 @@ export class Attendify {
    * @param networkId - network identifier (currently ignored)
    * @returns list of user json objects
    */
-  async getOrganizers(networkId: NetworkIdentifier): Promise<any[]> {
+  async getOrganizers(
+    networkId: NetworkIdentifier
+  ): Promise<Record<string, any>[]> {
     const users = await db.transaction(async (t) => {
       return await orm.User.findAll({
         order: [["walletAddress", "ASC"]],
