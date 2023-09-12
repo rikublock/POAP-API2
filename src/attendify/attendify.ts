@@ -8,6 +8,7 @@ import {
   isValidSecret,
   LedgerEntry,
   NFTokenBurn,
+  NFTokenCreateOffer,
   NFTokenCreateOfferFlags,
   NFTokenMint,
   Payment,
@@ -67,18 +68,19 @@ export class Attendify {
     await db.authenticate();
     await db.sync({ force: false });
 
-    // determine next event id
-    const event = await orm.Event.findOne({
-      order: [["id", "DESC"]],
-    });
-    if (event) {
-      this.nextEventId = event.id + 1;
-    } else {
-      this.nextEventId = 1;
-    }
-
-    // ensure seed wallet users exist
     await db.transaction(async (t) => {
+      // determine next event id
+      const event = await orm.Event.findOne({
+        order: [["id", "DESC"]],
+        transaction: t,
+      });
+      if (event) {
+        this.nextEventId = event.id + 1;
+      } else {
+        this.nextEventId = 1;
+      }
+
+      // ensure seed wallet users exist
       for (const config of this.networkConfigs) {
         if (isValidSecret(config.vaultWalletSeed)) {
           const wallet = Wallet.fromSeed(config.vaultWalletSeed);
@@ -186,13 +188,13 @@ export class Attendify {
    * @param networkId - network identifier
    * @param walletAddress - recipient wallet address (offer can only be accepted by this account)
    * @param tokenId - account wallet address
-   * @returns sell offer index
+   * @returns sell offer index and tx fee costs
    */
   async createSellOffer(
     networkId: NetworkIdentifier,
     walletAddress: string,
     tokenId: string
-  ): Promise<string> {
+  ): Promise<[string, bigint]> {
     if (!(await this.checkAccountExists(networkId, walletAddress))) {
       throw new AttendifyError("Unable to find account on the XRPL");
     }
@@ -201,7 +203,7 @@ export class Attendify {
     await client.connect();
     try {
       console.debug(`Creating NFT sell offer for '${tokenId}'`);
-      const tx = await client.submitAndWait(
+      const tx: TxResponse<NFTokenCreateOffer> = await client.submitAndWait(
         {
           TransactionType: "NFTokenCreateOffer",
           Account: wallet.classicAddress,
@@ -216,8 +218,10 @@ export class Attendify {
         }
       );
 
-      // TODO accumulate tx fees
-      return (tx.result.meta as any).offer_id as string;
+      const offerIndex = (tx.result.meta as any).offer_id as string;
+      const accumulatedTxFees = BigInt(tx.result.Fee || FALLBACK_TX_FEE);
+
+      return [offerIndex, accumulatedTxFees];
     } finally {
       client.disconnect();
     }
@@ -235,76 +239,101 @@ export class Attendify {
     walletAddress: string,
     createOffer: boolean,
     checkIsManaged: boolean
-  ): Promise<any> {
-    const event = await orm.Event.findOne({
-      where: { id: eventId },
-    });
-    if (!event) {
-      throw new AttendifyError("Invalid event ID");
-    }
-    if (event.status !== EventStatus.ACTIVE) {
-      throw new AttendifyError("Event is not active");
-    }
-    if ((await event.countAttendees()) >= event.tokenCount) {
-      throw new AttendifyError("Event already full");
-    }
-    if (await event.hasAttendee(walletAddress)) {
-      throw new AttendifyError("User is already a participant");
-    }
-    if (
-      checkIsManaged &&
-      event.isManaged &&
-      event.ownerWalletAddress !== walletAddress
-    ) {
-      throw new AttendifyError("Not allowed to join private event");
-    }
+  ): Promise<Record<string, any>> {
+    return await db.transaction(async (t) => {
+      const event = await orm.Event.findOne({
+        where: { id: eventId },
+        include: [orm.Event.associations.accounting],
+        lock: true,
+        transaction: t,
+      });
 
-    const user = await orm.User.findOne({
-      where: { walletAddress: walletAddress },
-    });
-    if (!user) {
-      throw new AttendifyError("Unable to find user");
-    }
+      if (!event) {
+        throw new AttendifyError("Invalid event ID");
+      }
+      if (event.status !== EventStatus.ACTIVE) {
+        throw new AttendifyError("Event is not active");
+      }
+      if ((await event.countAttendees()) >= event.tokenCount) {
+        throw new AttendifyError("Event already full");
+      }
+      if (await event.hasAttendee(walletAddress)) {
+        throw new AttendifyError("User is already a participant");
+      }
+      if (
+        checkIsManaged &&
+        event.isManaged &&
+        event.ownerWalletAddress !== walletAddress
+      ) {
+        throw new AttendifyError("Not allowed to join private event");
+      }
 
-    // find an available NFT that has not been assigned to a claim
-    const nft = (
-      await orm.NFT.findAll({
-        where: {
-          eventId: event.id,
-        },
-        include: [
-          {
-            association: orm.NFT.associations.claim,
-            required: false,
-            attributes: ["id"],
+      const user = await orm.User.findOne({
+        where: { walletAddress: walletAddress },
+        transaction: t,
+      });
+      if (!user) {
+        throw new AttendifyError("Unable to find user");
+      }
+
+      // find an available NFT that has not been assigned to a claim
+      const nft = (
+        await orm.NFT.findAll({
+          where: {
+            eventId: event.id,
           },
-        ],
-      })
-    ).find((x) => x.claim === null);
-    if (!nft) {
-      // Note: this should never happen unless db is out of sync
-      throw new AttendifyError("No more available slots");
-    }
+          include: [
+            {
+              association: orm.NFT.associations.claim,
+              required: false,
+              attributes: ["id"],
+            },
+          ],
+          transaction: t,
+        })
+      ).find((x) => x.claim === null);
+      if (!nft) {
+        // Note: this should never happen unless db is out of sync
+        throw new AttendifyError("No more available slots");
+      }
 
-    let offerIndex: string | undefined = undefined;
-    if (createOffer) {
-      offerIndex = await this.createSellOffer(
-        event.networkId,
-        walletAddress,
-        nft.id
+      let offerIndex: string | undefined = undefined;
+      let txFees: bigint | undefined = undefined;
+      if (createOffer) {
+        [offerIndex, txFees] = await this.createSellOffer(
+          event.networkId,
+          walletAddress,
+          nft.id
+        );
+      }
+
+      // add the participant
+      await event.addAttendee(user, { transaction: t });
+
+      const claim = await user.createClaim(
+        {
+          tokenId: nft.id,
+          offerIndex: offerIndex ?? null,
+          claimed: false,
+        },
+        { transaction: t }
       );
-    }
 
-    // add the participant
-    await event.addAttendee(user);
+      // accumulate fees
+      if (txFees) {
+        assert(event.accounting);
+        await event.accounting?.update(
+          {
+            accumulatedTxFees: (
+              BigInt(event.accounting?.accumulatedTxFees) + txFees
+            ).toString(),
+          },
+          { transaction: t }
+        );
+      }
 
-    const claim = await user.createClaim({
-      tokenId: nft.id,
-      offerIndex: offerIndex ?? null,
-      claimed: false,
+      return claim.toJSON();
     });
-
-    return claim.toJSON();
   }
 
   /**
@@ -479,52 +508,70 @@ export class Attendify {
    * @param eventId - event identifier
    * @returns offer json object
    */
-  async getClaim(walletAddress: string, eventId: number): Promise<any | null> {
-    // query claim
-    const claim = await orm.Claim.findOne({
-      where: { ownerWalletAddress: walletAddress },
-      include: [
-        {
-          association: orm.Claim.associations.token,
-          where: { eventId: eventId },
-          include: [orm.NFT.associations.event],
-        },
-      ],
-    });
-    if (!(claim && claim.token && claim.token.event)) {
-      // user is not participant
-      return null;
-    }
+  async getClaim(
+    walletAddress: string,
+    eventId: number
+  ): Promise<Record<string, any> | null> {
+    return await db.transaction(async (t) => {
+      // query claim
+      const claim = await orm.Claim.findOne({
+        where: { ownerWalletAddress: walletAddress },
+        include: [
+          {
+            association: orm.Claim.associations.token,
+            where: { eventId: eventId },
+            include: [orm.NFT.associations.event],
+          },
+        ],
+        transaction: t,
+      });
 
-    const networkId = claim.token.event.networkId as NetworkIdentifier;
-
-    // verify on chain claimed status
-    if (!claim.claimed) {
-      if (claim.offerIndex) {
-        // check if the sell offer still exists
-        const claimed = !(await this.checkSellOffer(
-          networkId,
-          claim.tokenId,
-          claim.offerIndex
-        ));
-
-        // update database accordingly
-        if (claimed) {
-          claim.claimed = true;
-          await claim.save();
-        }
-      } else {
-        // sell offer was previously not created on chain, do it now
-        claim.offerIndex = await this.createSellOffer(
-          networkId,
-          walletAddress,
-          claim.token.id
-        );
-        await claim.save();
+      if (!(claim && claim.token && claim.token.event)) {
+        // user is not participant
+        return null;
       }
-    }
 
-    return claim.toJSON();
+      const networkId = claim.token.event.networkId;
+
+      // verify on chain claimed status
+      if (!claim.claimed) {
+        if (claim.offerIndex) {
+          // check if the sell offer still exists
+          const claimed = !(await this.checkSellOffer(
+            networkId,
+            claim.tokenId,
+            claim.offerIndex
+          ));
+
+          // update database accordingly
+          if (claimed) {
+            await claim.update({ claimed: true }, { transaction: t });
+          }
+        } else {
+          // sell offer was previously not created on chain, do it now
+          const [offerIndex, txFees] = await this.createSellOffer(
+            networkId,
+            walletAddress,
+            claim.token.id
+          );
+
+          await claim.update({ offerIndex: offerIndex }, { transaction: t });
+
+          // accumulate fees
+          assert(claim.token.event.accounting);
+          await claim.token.event.accounting?.update(
+            {
+              accumulatedTxFees: (
+                BigInt(claim.token.event.accounting?.accumulatedTxFees) + txFees
+              ).toString(),
+            },
+            { transaction: t }
+          );
+        }
+      }
+
+      return claim.toJSON();
+    });
   }
 
   /**
