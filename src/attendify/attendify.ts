@@ -109,7 +109,6 @@ export class Attendify {
    * @param networkId - network identifier
    * @returns fresh wallet and client instance for a network
    */
-  // TODO should cache the return values (manage connections)
   getNetworkConfig(networkId: NetworkIdentifier): [Client, Wallet] {
     const config = this.networkConfigs.find((obj: NetworkConfig) => {
       return obj.networkId === networkId;
@@ -356,6 +355,7 @@ export class Attendify {
         transaction: t,
       });
     });
+
     if (!event) {
       throw new AttendifyError("Invalid event ID");
     }
@@ -806,6 +806,7 @@ export class Attendify {
         transaction: t,
       });
     });
+
     if (!event) {
       throw new AttendifyError("Invalid event ID");
     }
@@ -1282,23 +1283,27 @@ export class Attendify {
     networkId: NetworkIdentifier,
     limit: number = 100
   ): Promise<Record<string, any>[]> {
-    const events = await orm.Event.findAll({
-      order: [["id", "DESC"]],
-      limit: limit,
-      where: {
-        ...(networkId !== NetworkIdentifier.UNKNOWN
-          ? { networkId: networkId }
-          : {}),
-      },
-      include: [
-        orm.Event.associations.accounting,
-        {
-          association: orm.Event.associations.attendees,
-          through: { attributes: [] }, // exclude: 'Participation'
+    const events = await db.transaction(async (t) => {
+      return await orm.Event.findAll({
+        order: [["id", "DESC"]],
+        limit: limit,
+        where: {
+          ...(networkId !== NetworkIdentifier.UNKNOWN
+            ? { networkId: networkId }
+            : {}),
         },
-        orm.Event.associations.owner,
-      ],
+        include: [
+          orm.Event.associations.accounting,
+          {
+            association: orm.Event.associations.attendees,
+            through: { attributes: [] }, // exclude: 'Participation'
+          },
+          orm.Event.associations.owner,
+        ],
+        transaction: t,
+      });
     });
+
     return events.map((event) => event.toJSON());
   }
 
@@ -1335,6 +1340,7 @@ export class Attendify {
         transaction: t,
       });
     });
+
     return events.map((event) => event.toJSON());
   }
 
@@ -1363,6 +1369,7 @@ export class Attendify {
         transaction: t,
       });
     });
+
     return events.map((event) => event.toJSON());
   }
 
@@ -1404,6 +1411,7 @@ export class Attendify {
         transaction: t,
       });
     });
+
     return offers.map((offer) => offer.toJSON());
   }
 
@@ -1417,8 +1425,8 @@ export class Attendify {
     eventId: number,
     walletAddress?: string
   ): Promise<Record<string, any> | undefined> {
-    const event = await db.transaction(async (t) => {
-      return await orm.Event.findOne({
+    return await db.transaction(async (t) => {
+      const event = await orm.Event.findOne({
         where: { id: eventId },
         include: [
           orm.Event.associations.accounting,
@@ -1431,26 +1439,29 @@ export class Attendify {
         ],
         transaction: t,
       });
-    });
 
-    // if managed, restrict access to owner or attendee
-    if (event?.isManaged) {
-      if (
-        event.ownerWalletAddress !== walletAddress &&
-        !(walletAddress && (await event.hasAttendee(walletAddress)))
-      ) {
-        return undefined;
+      // if managed, restrict access to owner or attendee
+      if (event?.isManaged) {
+        if (
+          event.ownerWalletAddress !== walletAddress &&
+          !(
+            walletAddress &&
+            (await event.hasAttendee(walletAddress, { transaction: t }))
+          )
+        ) {
+          return undefined;
+        }
       }
-    }
 
-    // if owner, add more info
-    if (event && event.ownerWalletAddress !== walletAddress) {
-      event.accounting = undefined;
-      event.attendees = undefined;
-      event.nfts = undefined;
-    }
+      // if owner, add more info
+      if (event && event.ownerWalletAddress !== walletAddress) {
+        event.accounting = undefined;
+        event.attendees = undefined;
+        event.nfts = undefined;
+      }
 
-    return event?.toJSON();
+      return event?.toJSON();
+    });
   }
 
   /**
@@ -1498,6 +1509,7 @@ export class Attendify {
         return result;
       }
     });
+
     return user?.toJSON();
   }
 
@@ -1553,6 +1565,7 @@ export class Attendify {
         transaction: t,
       });
     });
+
     return users.map((user) => user.toJSON());
   }
 
@@ -1586,6 +1599,7 @@ export class Attendify {
         transaction: t,
       });
     });
+
     return users.map((user) => user.toJSON());
   }
 
@@ -1600,88 +1614,97 @@ export class Attendify {
       0
     );
 
-    // exclude vault wallet users
-    const userCount = await orm.User.count({
-      where: {
-        walletAddress: {
-          [Op.notIn]: this.networkConfigs
-            .filter((c) => isValidSecret(c.vaultWalletSeed))
-            .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+    // Note: excluding vault wallet users
+    return await db.transaction(async (t) => {
+      const userCount = await orm.User.count({
+        where: {
+          walletAddress: {
+            [Op.notIn]: this.networkConfigs
+              .filter((c) => isValidSecret(c.vaultWalletSeed))
+              .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+          },
         },
-      },
-    });
+        transaction: t,
+      });
 
-    const organizerCount = await orm.User.count({
-      where: {
-        walletAddress: {
-          [Op.notIn]: this.networkConfigs
-            .filter((c) => isValidSecret(c.vaultWalletSeed))
-            .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+      const organizerCount = await orm.User.count({
+        where: {
+          walletAddress: {
+            [Op.notIn]: this.networkConfigs
+              .filter((c) => isValidSecret(c.vaultWalletSeed))
+              .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+          },
+          isOrganizer: true,
         },
-        isOrganizer: true,
-      },
-    });
+        transaction: t,
+      });
 
-    const adminCount = await orm.User.count({
-      where: {
-        walletAddress: {
-          [Op.notIn]: this.networkConfigs
-            .filter((c) => isValidSecret(c.vaultWalletSeed))
-            .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+      const adminCount = await orm.User.count({
+        where: {
+          walletAddress: {
+            [Op.notIn]: this.networkConfigs
+              .filter((c) => isValidSecret(c.vaultWalletSeed))
+              .map((c) => Wallet.fromSeed(c.vaultWalletSeed).classicAddress),
+          },
+          isAdmin: true,
         },
-        isAdmin: true,
-      },
-    });
+        transaction: t,
+      });
 
-    const eventCount = await orm.Event.count({
-      where: {
-        networkId: NetworkIdentifier.TESTNET,
-      },
-    });
-
-    const pendingCount = await orm.Event.count({
-      where: {
-        networkId: NetworkIdentifier.TESTNET,
-        status: EventStatus.PENDING,
-      },
-    });
-
-    const activeCount = await orm.Event.count({
-      where: {
-        networkId: NetworkIdentifier.TESTNET,
-        status: {
-          [Op.or]: [EventStatus.PAID, EventStatus.ACTIVE],
+      const eventCount = await orm.Event.count({
+        where: {
+          networkId: NetworkIdentifier.TESTNET,
         },
-      },
-    });
+        transaction: t,
+      });
 
-    const finishedCount = await orm.Event.count({
-      where: {
-        networkId: NetworkIdentifier.TESTNET,
-        status: {
-          [Op.or]: [EventStatus.CLOSED, EventStatus.REFUNDED],
+      const pendingCount = await orm.Event.count({
+        where: {
+          networkId: NetworkIdentifier.TESTNET,
+          status: EventStatus.PENDING,
         },
-      },
+        transaction: t,
+      });
+
+      const activeCount = await orm.Event.count({
+        where: {
+          networkId: NetworkIdentifier.TESTNET,
+          status: {
+            [Op.or]: [EventStatus.PAID, EventStatus.ACTIVE],
+          },
+        },
+        transaction: t,
+      });
+
+      const finishedCount = await orm.Event.count({
+        where: {
+          networkId: NetworkIdentifier.TESTNET,
+          status: {
+            [Op.or]: [EventStatus.CLOSED, EventStatus.REFUNDED],
+          },
+        },
+        transaction: t,
+      });
+
+      // TODO sum slots of all paid+active events -> calc reserve, compare to actual reserve
+
+      return {
+        users: {
+          total: userCount,
+          organizers: organizerCount,
+          admins: adminCount,
+        },
+        events: {
+          total: eventCount,
+          pending: pendingCount,
+          active: activeCount,
+          finished: finishedCount,
+        },
+        account: {
+          balance: balance.toString(),
+          reserve: reserve.toString(),
+        },
+      };
     });
-
-    // TODO sum slots of all paid+active events -> calc reserve, compare to actual reserve
-
-    return {
-      users: {
-        total: userCount,
-        organizers: organizerCount,
-        admins: adminCount,
-      },
-      events: {
-        total: eventCount,
-        pending: pendingCount,
-        active: activeCount,
-        finished: finishedCount,
-      },
-      account: {
-        balance: balance.toString(),
-        reserve: reserve.toString(),
-      },
-    };
   }
 }
