@@ -1345,7 +1345,7 @@ export class Attendify {
   }
 
   /**
-   * Fetch active events that have ended
+   * Fetch active events that have ended (used by daemon)
    * @param networkId - network identifier
    * @param walletAddress - optionally filter by owner wallet address
    * @returns list of event json objects
@@ -1361,6 +1361,34 @@ export class Attendify {
           dateEnd: {
             [Op.lt]: Date.now(),
           },
+          ...(networkId !== NetworkIdentifier.UNKNOWN
+            ? { networkId: networkId }
+            : {}),
+          ...(walletAddress ? { ownerWalletAddress: walletAddress } : {}),
+        },
+        transaction: t,
+      });
+    });
+
+    return events.map((event) => event.toJSON());
+  }
+
+  /**
+   * Fetch specific events (used by daemon)
+   * @param networkId - network identifier
+   * @param status - optionally filter by status
+   * @param walletAddress - optionally filter by owner wallet address
+   * @returns list of event json objects
+   */
+  async getEventsFiltered(
+    networkId: NetworkIdentifier,
+    status?: EventStatus,
+    walletAddress?: string
+  ): Promise<Record<string, any>[]> {
+    const events = await db.transaction(async (t) => {
+      return await orm.Event.findAll({
+        where: {
+          ...(status ? { status: status } : {}),
           ...(networkId !== NetworkIdentifier.UNKNOWN
             ? { networkId: networkId }
             : {}),
