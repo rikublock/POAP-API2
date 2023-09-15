@@ -75,9 +75,9 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
 
 ## Reserve Requirements 
 
-A platform (vault wallet) account needs a minimum balance of 512 XRP to function correctly:
+A platform (vault wallet) account needs a minimum balance of 62 XRP to function correctly:
 - 10 XRP base reserve (account activation)
-- 500 XRP owner reserve for tickets, used for batch minting/burning (configurable, should be `2 * MAX_TICKETS`)
+- 50 XRP owner reserve for tickets, used for batch minting/burning (configurable, should be at least `2 * MAX_TICKETS`)
 - 2 XRP as a safety buffer
 
 ## Manage Admins

@@ -39,6 +39,9 @@ export const DEPOSIT_FEE = BigInt(xrpToDrops(1));
 // default tx fee in case an exact value is unknown
 export const FALLBACK_TX_FEE = 100n;
 
+// xrp ledger limitation, see https://xrpl.org/tickets.html#limitations
+const MAX_ALLOWED_TICKETS = 250;
+
 /**
  * Attendify is an utility library for the Proof of Attendance infrastructure on the XRPL.
  */
@@ -837,7 +840,12 @@ export class Attendify {
     await client.connect();
     try {
       console.debug(`Batch minting ${tokenCount} NFT(s)`);
-      const chunkSize = this.maxTickets;
+
+      // Note: Using the event deposit to cover temporary ticket reserves.
+      // We require a deposit of at least 2 XRP for an event slot, which is
+      // enough to cover the reserve costs of a single ticket. Therefore, we
+      // can mint with max chunk size as we require no platform resources.
+      const chunkSize = MAX_ALLOWED_TICKETS;
       for (let i = 0; i < tokenCount; i += chunkSize) {
         const chunkTokenCount = Math.min(chunkSize, tokenCount - i);
 
@@ -1008,8 +1016,16 @@ export class Attendify {
 
       // batch burn
       console.debug(`Batch burning ${tokenIds.length} NFT(s)`);
-      const chunkSize = this.maxTickets;
-      for (let i = 0; i < tokenIds.length; i += chunkSize) {
+
+      // Note: Using an exponentially growing chunk size for burning. We require
+      // a deposit of at least 2 XRP for an event slot. For every freed up slot,
+      // we can cover an additional ticket in the next burning round by making
+      // use of the event deposit.
+      for (
+        let i = 0, chunkSize = this.maxTickets;
+        i < tokenIds.length;
+        i += chunkSize, chunkSize = Math.min(chunkSize * 2, MAX_ALLOWED_TICKETS)
+      ) {
         const chunk = tokenIds.slice(i, i + chunkSize);
         const tokenCount = Math.min(chunk.length, chunkSize);
 
@@ -1045,7 +1061,7 @@ export class Attendify {
         try {
           txs = await Promise.all(promises);
         } catch (err) {
-          console.log(err);
+          console.debug(err);
           throw new AttendifyError("NFT burn failed");
         }
 
