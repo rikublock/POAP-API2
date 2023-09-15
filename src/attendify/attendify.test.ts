@@ -56,7 +56,7 @@ describe("attendify API", () => {
       await lib.getUser(walletAuthorized.classicAddress, true, true, true);
 
       // create event db entry
-      const tokenCount = 8;
+      const tokenCount = 18;
       const eventId = await lib.createEvent(
         networkConfig.networkId,
         walletAuthorized.classicAddress,
@@ -123,8 +123,9 @@ describe("attendify API", () => {
       expect(event.status).toBe(EventStatus.ACTIVE);
       expect(event.uri).toBeDefined();
       expect(event.accounting).toBeDefined();
-      expect(BigInt(event.accounting.accumulatedTxFees)).toBeGreaterThan(
-        BigInt((tokenCount + 2) * 10)
+      expect(BigInt(event.accounting.accumulatedTxFees)).toBeGreaterThanOrEqual(
+        // 1x create ticket
+        BigInt((tokenCount + 1) * 10)
       );
       expect(event.nfts?.length).toBe(tokenCount);
 
@@ -136,8 +137,9 @@ describe("attendify API", () => {
       expect(event).toBeDefined();
       assert(event);
       expect(event.status).toBe(EventStatus.CLOSED);
-      expect(BigInt(event.accounting.accumulatedTxFees)).toBeGreaterThan(
-        BigInt(2 * (tokenCount + 2) * 10)
+      expect(BigInt(event.accounting.accumulatedTxFees)).toBeGreaterThanOrEqual(
+        // 4x create ticket
+        BigInt((2 * tokenCount + 1 + 3) * 10)
       );
     },
     3 * timeout
@@ -186,6 +188,41 @@ describe("attendify API", () => {
       await expect(async () => {
         await lib.mintEvent(eventId);
       }).rejects.toThrow(AttendifyError);
+
+      // find tickets
+      const [ticketSequences, txFees] = await lib.prepareTickets(
+        networkConfig.networkId,
+        tokenCount
+      );
+
+      // remove tickets by using AccountSet with no options
+      // see: https://xrpl.org/canceling-a-transaction.html
+      const [client, walletVault] = lib.getNetworkConfig(
+        networkConfig.networkId
+      );
+      await client.connect();
+      try {
+        const promises = [];
+        for (let j = 0; j < tokenCount; ++j) {
+          promises.push(
+            client.submitAndWait(
+              {
+                TransactionType: "AccountSet",
+                Account: walletVault.classicAddress,
+                Sequence: 0,
+                TicketSequence: ticketSequences[j],
+              },
+              {
+                failHard: true,
+                wallet: walletVault,
+              }
+            )
+          );
+        }
+        await Promise.all(promises);
+      } finally {
+        await client.disconnect();
+      }
 
       const event = await lib.getEvent(eventId, wallet.classicAddress);
       expect(event?.status).toBe(EventStatus.CANCELED);
@@ -246,8 +283,8 @@ describe("attendify API", () => {
 
       // make payment
       const client = new Client(networkConfig.url);
+      await client.connect();
       try {
-        await client.connect();
         await client.submitAndWait(
           {
             TransactionType: "Payment",
