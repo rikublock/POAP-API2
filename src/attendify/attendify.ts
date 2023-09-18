@@ -980,20 +980,12 @@ export class Attendify {
     const event = await db.transaction(async (t) => {
       return await orm.Event.findOne({
         where: { id: eventId },
-        include: [
-          orm.Event.associations.accounting,
-          orm.Event.associations.owner,
-          {
-            association: orm.Event.associations.nfts,
-            include: [orm.NFT.associations.claim],
-            required: true,
-          },
-        ],
+        include: [orm.Event.associations.accounting],
         transaction: t,
       });
     });
 
-    if (!event || !event.nfts) {
+    if (!event) {
       throw new AttendifyError("Unable to find event");
     }
     if (event.status !== EventStatus.CANCELED) {
@@ -1174,7 +1166,7 @@ export class Attendify {
         if (event.networkId !== networkId) {
           return false;
         }
-        
+
         // check destination address
         if (event.accounting.depositAddress !== tx.result.Destination) {
           return false;
