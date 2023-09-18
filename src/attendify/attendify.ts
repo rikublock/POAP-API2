@@ -1218,7 +1218,7 @@ export class Attendify {
    * @param eventId - event identifier
    * @returns tx hash
    */
-  async refundDeposit(eventId: number): Promise<string> {
+  async refundDeposit(eventId: number): Promise<string | null> {
     const hash = await db.transaction(async (t) => {
       const event = await orm.Event.findByPk(eventId, {
         include: [orm.Event.associations.accounting],
@@ -1236,6 +1236,18 @@ export class Attendify {
         throw new AttendifyError("Event deposit was already refunded");
       }
 
+      await event.update(
+        {
+          status: EventStatus.REFUNDED,
+        },
+        { transaction: t }
+      );
+
+      // only refund, if something was deposited
+      if (!event.accounting.depositTxHash) {
+        return null;
+      }
+
       // account for refund payment tx fee
       const value = (
         BigInt(event.accounting.depositReserveValue) +
@@ -1243,13 +1255,6 @@ export class Attendify {
         BigInt(event.accounting.accumulatedTxFees) -
         FALLBACK_TX_FEE
       ).toString();
-
-      await event.update(
-        {
-          status: EventStatus.REFUNDED,
-        },
-        { transaction: t }
-      );
 
       const [client, wallet] = this.getNetworkConfig(event.networkId);
       await client.connect();
