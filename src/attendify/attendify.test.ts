@@ -261,31 +261,16 @@ describe("attendify API", () => {
         FALLBACK_TX_FEE
       ).toString();
 
-      // mark as closed
-      await db.transaction(async (t) => {
-        const event = await orm.Event.findByPk(eventId, {
-          include: [orm.Event.associations.accounting],
-          lock: true,
-          transaction: t,
-        });
-
-        await event?.update(
-          {
-            status: EventStatus.CLOSED,
-          },
-          { transaction: t }
-        );
-      });
-
       let event = await lib.getEvent(eventId, walletAuthorized.classicAddress);
       expect(event).toBeDefined();
       assert(event);
 
       // make payment
+      let txHash: string;
       const client = new Client(networkConfig.url);
       await client.connect();
       try {
-        await client.submitAndWait(
+        const response = await client.submitAndWait(
           {
             TransactionType: "Payment",
             Account: walletAuthorized.classicAddress,
@@ -306,9 +291,30 @@ describe("attendify API", () => {
             wallet: walletAuthorized,
           }
         );
+        txHash = response.result.hash;
       } finally {
         await client.disconnect();
       }
+
+      // verify payment
+      const success = await lib.checkPayment(networkConfig.networkId, txHash);
+      expect(success).toBe(true);
+
+      // mark as closed
+      await db.transaction(async (t) => {
+        const event = await orm.Event.findByPk(eventId, {
+          include: [orm.Event.associations.accounting],
+          lock: true,
+          transaction: t,
+        });
+
+        await event?.update(
+          {
+            status: EventStatus.CLOSED,
+          },
+          { transaction: t }
+        );
+      });
 
       // refund deposit
       const hash = await lib.refundDeposit(eventId);
