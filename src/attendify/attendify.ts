@@ -1171,7 +1171,10 @@ export class Attendify {
         if (event.status !== EventStatus.PENDING) {
           return false;
         }
-
+        if (event.networkId !== networkId) {
+          return false;
+        }
+        
         // check destination address
         if (event.accounting.depositAddress !== tx.result.Destination) {
           return false;
