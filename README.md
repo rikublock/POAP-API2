@@ -44,6 +44,7 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
 - data is stored in a database (with orm), available models:
   - `User`
   - `Event`
+  - `Accounting`
   - `NFT`
   - `Claim`
 - strict request data validation
