@@ -22,19 +22,7 @@ import {
 import { EventStatus, NetworkIdentifier } from "../types";
 import config from "../config";
 
-let sequelize: Sequelize;
-if (config.isTesting) {
-  sequelize = new Sequelize({
-    dialect: "sqlite",
-    storage: ":memory:",
-    logging: false,
-    define: {
-      timestamps: false,
-    },
-  });
-} else {
-  sequelize = new Sequelize(config.attendify.db);
-}
+const sequelize = new Sequelize(config.attendify.db);
 
 export const db = sequelize;
 

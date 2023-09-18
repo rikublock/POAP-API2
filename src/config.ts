@@ -30,8 +30,10 @@ export type Config = {
   server: ConfigServer;
 };
 
+const isTesting = process.env.NODE_ENV === "test";
+
 const DEFAULT: Config = {
-  isTesting: process.env.NODE_ENV === "test",
+  isTesting: isTesting,
   attendify: {
     db: {
       dialect: "sqlite",
@@ -81,6 +83,42 @@ const DEFAULT: Config = {
   },
 };
 
-export const config: Config = DEFAULT;
+const CI: Config = {
+  isTesting: isTesting,
+  attendify: {
+    db: {
+      dialect: "sqlite",
+      storage: ":memory:",
+      logging: false,
+      define: {
+        timestamps: false,
+      },
+    },
+    networkConfigs: [
+      {
+        networkId: NetworkIdentifier.TESTNET,
+        url: "wss://s.altnet.rippletest.net:51233/",
+        vaultWalletSeed: "sEd7a9r3UWGLSV6HkKmF3xiCTTi7UHw", // rDnAPDiJk1P4Roh6x7x2eiHsvbbeKtPm3j
+      },
+    ],
+    ipfs: {
+      infuraId: "",
+      infuraSecret: "",
+      web3StorageToken: process.env.IPFS_WEB3_STORAGE_API_TOKEN as string,
+    },
+    maxTickets: 5,
+  },
+  server: {
+    port: 4000,
+    xummApiKey: process.env.XUMM_API_KEY as string,
+    xummApiSecret: process.env.XUMM_API_SECRET as string,
+    jwtSecret: "ac958f151a3db2f3e0f65563eeca98cc1f5966452c4664c5063b6ef90b082513",
+    hashidSalt: "cdfcb55e2f120f20b8b79d981e4b061a40f691d54005e2c057afd49dea392eb5",
+    hashidLength: 2,
+    maxEventSlots: 200,
+  },
+};
+
+const config: Config = isTesting ? CI : DEFAULT;
 
 export default config;
