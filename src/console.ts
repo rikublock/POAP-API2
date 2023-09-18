@@ -26,7 +26,6 @@ async function addAdmin(
         walletAddress: address,
         isOrganizer: false,
         isAdmin: true,
-        slots: 0,
       },
     });
     if (created) {
