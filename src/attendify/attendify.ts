@@ -1697,14 +1697,14 @@ export class Attendify {
 
       const eventCount = await orm.Event.count({
         where: {
-          networkId: NetworkIdentifier.TESTNET,
+          networkId,
         },
         transaction: t,
       });
 
       const pendingCount = await orm.Event.count({
         where: {
-          networkId: NetworkIdentifier.TESTNET,
+          networkId,
           status: EventStatus.PENDING,
         },
         transaction: t,
@@ -1712,7 +1712,7 @@ export class Attendify {
 
       const activeCount = await orm.Event.count({
         where: {
-          networkId: NetworkIdentifier.TESTNET,
+          networkId,
           status: {
             [Op.or]: [EventStatus.PAID, EventStatus.ACTIVE],
           },
@@ -1722,15 +1722,13 @@ export class Attendify {
 
       const finishedCount = await orm.Event.count({
         where: {
-          networkId: NetworkIdentifier.TESTNET,
+          networkId,
           status: {
-            [Op.or]: [EventStatus.CLOSED, EventStatus.REFUNDED],
+            [Op.or]: [EventStatus.CANCELED, EventStatus.CLOSED, EventStatus.REFUNDED],
           },
         },
         transaction: t,
       });
-
-      // TODO sum slots of all paid+active events -> calc reserve, compare to actual reserve
 
       return {
         users: {
