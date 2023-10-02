@@ -1052,7 +1052,7 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
         let stats = cache.get<PlatformStats>(key);
         if (!stats) {
           stats = await AttendifyLib.getStats(data.networkId);
-          cache.set<PlatformStats>(key, stats, 120);
+          cache.set<PlatformStats>(key, stats, 30);
         }
         res.json({
           result: stats,
