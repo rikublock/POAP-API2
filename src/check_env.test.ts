@@ -8,26 +8,26 @@ describe("transform EnvVariables", () => {
 
   beforeEach(() => {
     plain = {
-      mainnetUrl: "wss://xrplcluster.com",
-      mainnetVaultWalletSeed: "",
-      testnetUrl: "wss://s.altnet.rippletest.net:51233/",
-      testnetVaultWalletSeed: "sEdVZdHg5uJBg6yRm3poMzqgjnsVe6x",
-      devnetUrl: "wss://s.devnet.rippletest.net:51233/",
-      devnetVaultWalletSeed: "",
-      ammDevnetUrl: "wss://amm.devnet.rippletest.net:51233/",
-      ammDevnetVaultWalletSeed: "",
-      ipfsInfuraId: "70391448321d207cce27051dabe02207",
-      ipfsInfuraSecret: "70391448321d207cce27051dabe02207",
-      ipfsWeb3StorageApiToken:
+      MAINNET_URL: "wss://xrplcluster.com",
+      MAINNET_VAULT_WALLET_SEED: "",
+      TESTNET_URL: "wss://s.altnet.rippletest.net:51233/",
+      TESTNET_VAULT_WALLET_SEED: "sEdVZdHg5uJBg6yRm3poMzqgjnsVe6x",
+      DEVNET_URL: "wss://s.devnet.rippletest.net:51233/",
+      DEVNET_VAULT_WALLET_SEED: "",
+      AMM_DEVNET_URL: "wss://amm.devnet.rippletest.net:51233/",
+      AMM_DEVNET_VAULT_WALLET_SEED: "",
+      IPFS_INFURA_ID: "70391448321d207cce27051dabe02207",
+      IPFS_INFURA_SECRET: "70391448321d207cce27051dabe02207",
+      IPFS_WEB3_STORAGE_API_TOKEN:
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
-      xummApiKey: "7cd8c0ed-a68a-4263-8cc1-b753930ac7cf",
-      xummApiSecret: "c53a5b65-7dc7-46dc-a929-96d1710b0950",
-      jwtSecret:
+      XUMM_API_KEY: "7cd8c0ed-a68a-4263-8cc1-b753930ac7cf",
+      XUMM_API_SECRET: "c53a5b65-7dc7-46dc-a929-96d1710b0950",
+      JWT_SECRET:
         "6daabe0e4bf30932948ab41cc508dca270138c81b94d315735d58b7bdbe2cefc",
-      hashidSalt:
+      HASHID_SALT:
         "76d12a794e913f7a44899f50a7661e76385e5cad7ee204771d56abe060657e17",
-      maxTickets: "25",
-      maxEventSlots: "200",
+      MAX_TICKETS: "25",
+      MAX_EVENT_SLOTS: "200",
     };
   });
 
@@ -38,112 +38,112 @@ describe("transform EnvVariables", () => {
   });
 
   test("valid http url", async () => {
-    plain.testnetUrl = "https://s.altnet.rippletest.net:51234/";
+    plain.TESTNET_URL = "https://s.altnet.rippletest.net:51234/";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
   });
 
   test("bad url", async () => {
-    plain.testnetUrl = "bad";
+    plain.TESTNET_URL = "bad";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("empty url", async () => {
-    plain.testnetUrl = "";
+    plain.TESTNET_URL = "";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("bad seed", async () => {
-    plain.testnetVaultWalletSeed = "bad";
+    plain.TESTNET_VAULT_WALLET_SEED = "bad";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("undefined seed", async () => {
-    delete plain.testnetVaultWalletSeed;
+    delete plain.TESTNET_VAULT_WALLET_SEED;
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
   });
 
   test("empty infura id", async () => {
-    plain.ipfsInfuraId = "";
+    plain.IPFS_INFURA_ID = "";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
   });
 
   test("undefined infura id", async () => {
-    delete plain.ipfsInfuraId;
+    delete plain.IPFS_INFURA_ID;
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
   });
 
   test("bad infura id", async () => {
-    plain.ipfsInfuraId = "-";
+    plain.IPFS_INFURA_ID = "-";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("short infura id", async () => {
-    plain.ipfsInfuraId = "f61c22384cced1c8";
+    plain.IPFS_INFURA_ID = "f61c22384cced1c8";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("empty infura secret", async () => {
-    plain.ipfsInfuraSecret = "";
+    plain.IPFS_INFURA_SECRET = "";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
   });
 
   test("undefined infura secret", async () => {
-    delete plain.ipfsInfuraSecret;
+    delete plain.IPFS_INFURA_SECRET;
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
   });
 
   test("bad infura secret", async () => {
-    plain.ipfsInfuraSecret = "-";
+    plain.IPFS_INFURA_SECRET = "-";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("short infura secret", async () => {
-    plain.ipfsInfuraSecret = "f61c22384cced1c8";
+    plain.IPFS_INFURA_SECRET = "f61c22384cced1c8";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("empty web3storage api token", async () => {
-    plain.ipfsWeb3StorageApiToken = "";
+    plain.IPFS_WEB3_STORAGE_API_TOKEN = "";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
   });
 
   test("undefined web3storage api token", async () => {
-    delete plain.ipfsWeb3StorageApiToken;
+    delete plain.IPFS_WEB3_STORAGE_API_TOKEN;
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
   });
 
   test("bad web3storage api token", async () => {
-    plain.ipfsWeb3StorageApiToken =
+    plain.IPFS_WEB3_STORAGE_API_TOKEN =
       "6daabe0e4bf30932948ab41cc508dca270138c81b94d315735d58b7bdbe2cefc";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
@@ -151,7 +151,7 @@ describe("transform EnvVariables", () => {
   });
 
   test("bad xumm key", async () => {
-    plain.xummApiKey =
+    plain.XUMM_API_KEY =
       "6daabe0e4bf30932948ab41cc508dca270138c81b94d315735d58b7bdbe2cefc";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
@@ -159,7 +159,7 @@ describe("transform EnvVariables", () => {
   });
 
   test("bad xumm secret", async () => {
-    plain.xummApiSecret =
+    plain.XUMM_API_SECRET =
       "6daabe0e4bf30932948ab41cc508dca270138c81b94d315735d58b7bdbe2cefc";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
@@ -167,70 +167,70 @@ describe("transform EnvVariables", () => {
   });
 
   test("short jwt secret", async () => {
-    plain.jwtSecret = "0434c2d491ddfb5a5137e90beb0cc2bb";
+    plain.JWT_SECRET = "0434c2d491ddfb5a5137e90beb0cc2bb";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("bad jwt secret", async () => {
-    plain.jwtSecret = "-";
+    plain.JWT_SECRET = "-";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("short hashid salt", async () => {
-    plain.hashidSalt = "0434c2d491ddfb5a5137e90beb0cc2bb";
+    plain.HASHID_SALT = "0434c2d491ddfb5a5137e90beb0cc2bb";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(0);
   });
 
   test("shorter hashid salt", async () => {
-    plain.hashidSalt = "f61c22384cced1c8";
+    plain.HASHID_SALT = "f61c22384cced1c8";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("bad hashid salt", async () => {
-    plain.hashidSalt = "-";
+    plain.HASHID_SALT = "-";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("bad max tickets", async () => {
-    plain.maxTickets = "not a number";
+    plain.MAX_TICKETS = "not a number";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("too few max tickets", async () => {
-    plain.maxTickets = "0";
+    plain.MAX_TICKETS = "0";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("too many max tickets", async () => {
-    plain.maxTickets = "300";
+    plain.MAX_TICKETS = "300";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("bad max event slots", async () => {
-    plain.maxEventSlots = "not a number";
+    plain.MAX_EVENT_SLOTS = "not a number";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);
   });
 
   test("negative max event slots", async () => {
-    plain.maxEventSlots = "-10";
+    plain.MAX_EVENT_SLOTS = "-10";
     const data = plainToClass(EnvVariables, plain);
     const errors = await validate(data);
     expect(errors.length).toBe(1);

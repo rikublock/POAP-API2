@@ -49,127 +49,128 @@ export function IsXrpSecret(validationOptions?: ValidationOptions) {
 export class EnvVariables {
   @Expose()
   @IsUrl({ protocols: ["http", "https", "ws", "wss"] })
-  mainnetUrl: string;
+  MAINNET_URL: string;
 
   @Expose()
   @IsOptional()
   @IsString()
-  @ValidateIf((obj) => obj.mainnetVaultWalletSeed !== "")
+  @ValidateIf((obj) => obj.MAINNET_VAULT_WALLET_SEED !== "")
   @IsXrpSecret()
-  mainnetVaultWalletSeed?: string;
+  MAINNET_VAULT_WALLET_SEED?: string;
 
   @Expose()
   @IsUrl({ protocols: ["http", "https", "ws", "wss"] })
-  testnetUrl: string;
+  TESTNET_URL: string;
 
   @Expose()
   @IsOptional()
   @IsString()
-  @ValidateIf((obj) => obj.testnetVaultWalletSeed !== "")
+  @ValidateIf((obj) => obj.TESTNET_VAULT_WALLET_SEED !== "")
   @IsXrpSecret()
-  testnetVaultWalletSeed?: string;
+  TESTNET_VAULT_WALLET_SEED?: string;
 
   @Expose()
   @IsUrl({ protocols: ["http", "https", "ws", "wss"] })
-  devnetUrl: string;
+  DEVNET_URL: string;
 
   @Expose()
   @IsOptional()
   @IsString()
-  @ValidateIf((obj) => obj.devnetVaultWalletSeed !== "")
+  @ValidateIf((obj) => obj.DEVNET_VAULT_WALLET_SEED !== "")
   @IsXrpSecret()
-  devnetVaultWalletSeed?: string;
+  DEVNET_VAULT_WALLET_SEED?: string;
 
   @Expose()
   @IsUrl({ protocols: ["http", "https", "ws", "wss"] })
-  ammDevnetUrl: string;
+  AMM_DEVNET_URL: string;
 
   @Expose()
   @IsOptional()
   @IsString()
-  @ValidateIf((obj) => obj.ammDevnetVaultWalletSeed !== "")
+  @ValidateIf((obj) => obj.AMM_DEVNET_VAULT_WALLET_SEED !== "")
   @IsXrpSecret()
-  ammDevnetVaultWalletSeed?: string;
+  AMM_DEVNET_VAULT_WALLET_SEED?: string;
 
   @Expose()
   @IsOptional()
   @IsString()
-  @ValidateIf((obj) => obj.ipfsInfuraId !== "")
+  @ValidateIf((obj) => obj.IPFS_INFURA_ID !== "")
   @IsAlphanumeric()
   @Length(32)
-  ipfsInfuraId?: string;
+  IPFS_INFURA_ID?: string;
 
   @Expose()
   @IsOptional()
   @IsString()
-  @ValidateIf((obj) => obj.ipfsInfuraSecret !== "")
+  @ValidateIf((obj) => obj.IPFS_INFURA_SECRET !== "")
   @IsAlphanumeric()
   @Length(32)
-  ipfsInfuraSecret?: string;
+  IPFS_INFURA_SECRET?: string;
 
   @Expose()
   @IsOptional()
   @IsString()
-  @ValidateIf((obj) => obj.ipfsWeb3StorageApiToken !== "")
+  @ValidateIf((obj) => obj.IPFS_WEB3_STORAGE_API_TOKEN !== "")
   @IsJWT()
-  ipfsWeb3StorageApiToken?: string;
+  IPFS_WEB3_STORAGE_API_TOKEN?: string;
 
   @Expose()
   @IsString()
   @IsUUID(4)
-  xummApiKey: string;
+  XUMM_API_KEY: string;
 
   @Expose()
   @IsString()
   @IsUUID(4)
-  xummApiSecret: string;
+  XUMM_API_SECRET: string;
 
   @Expose()
   @IsString()
   @IsAlphanumeric()
   @Length(64)
-  jwtSecret: string;
+  JWT_SECRET: string;
 
   @Expose()
   @IsString()
   @IsAlphanumeric()
   @Length(32, 64)
-  hashidSalt: string;
+  HASHID_SALT: string;
 
   @Expose()
   @Type(() => Number)
   @IsInt()
   @Min(2)
   @Max(250)
-  maxTickets: number;
+  MAX_TICKETS: number;
 
   @Expose()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  maxEventSlots: number;
+  MAX_EVENT_SLOTS: number;
 }
 
 async function check() {
   const plain = {
-    mainnetUrl: process.env.MAINNET_URL as string,
-    mainnetVaultWalletSeed: process.env.MAINNET_VAULT_WALLET_SEED as string,
-    testnetUrl: process.env.TESTNET_URL as string,
-    testnetVaultWalletSeed: process.env.TESTNET_VAULT_WALLET_SEED as string,
-    devnetUrl: process.env.DEVNET_URL as string,
-    devnetVaultWalletSeed: process.env.DEVNET_VAULT_WALLET_SEED as string,
-    ammDevnetUrl: process.env.AMM_DEVNET_URL as string,
-    ammDevnetVaultWalletSeed: process.env
+    MAINNET_URL: process.env.MAINNET_URL as string,
+    MAINNET_VAULT_WALLET_SEED: process.env.MAINNET_VAULT_WALLET_SEED as string,
+    TESTNET_URL: process.env.TESTNET_URL as string,
+    TESTNET_VAULT_WALLET_SEED: process.env.TESTNET_VAULT_WALLET_SEED as string,
+    DEVNET_URL: process.env.DEVNET_URL as string,
+    DEVNET_VAULT_WALLET_SEED: process.env.DEVNET_VAULT_WALLET_SEED as string,
+    AMM_DEVNET_URL: process.env.AMM_DEVNET_URL as string,
+    AMM_DEVNET_VAULT_WALLET_SEED: process.env
       .AMM_DEVNET_VAULT_WALLET_SEED as string,
-    ipfsInfuraId: process.env.IPFS_INFURA_ID as string,
-    ipfsInfuraSecret: process.env.IPFS_INFURA_SECRET as string,
-    ipfsWeb3StorageApiToken: process.env.IPFS_WEB3_STORAGE_API_TOKEN as string,
-    xummApiKey: process.env.XUMM_API_KEY as string,
-    xummApiSecret: process.env.XUMM_API_SECRET as string,
-    jwtSecret: process.env.JWT_SECRET as string,
-    hashidSalt: process.env.HASHID_SALT as string,
-    maxTickets: process.env.MAX_TICKETS as string,
-    maxEventSlots: process.env.MAX_EVENT_SLOTS as string,
+    IPFS_INFURA_ID: process.env.IPFS_INFURA_ID as string,
+    IPFS_INFURA_SECRET: process.env.IPFS_INFURA_SECRET as string,
+    IPFS_WEB3_STORAGE_API_TOKEN: process.env
+      .IPFS_WEB3_STORAGE_API_TOKEN as string,
+    XUMM_API_KEY: process.env.XUMM_API_KEY as string,
+    XUMM_API_SECRET: process.env.XUMM_API_SECRET as string,
+    JWT_SECRET: process.env.JWT_SECRET as string,
+    HASHID_SALT: process.env.HASHID_SALT as string,
+    MAX_TICKETS: process.env.MAX_TICKETS as string,
+    MAX_EVENT_SLOTS: process.env.MAX_EVENT_SLOTS as string,
   };
 
   const data = plainToClass(EnvVariables, plain, {
@@ -184,19 +185,21 @@ async function check() {
 
   if (
     !(
-      data.mainnetVaultWalletSeed ||
-      data.testnetVaultWalletSeed ||
-      data.devnetVaultWalletSeed ||
-      data.ammDevnetVaultWalletSeed
+      data.MAINNET_VAULT_WALLET_SEED ||
+      data.TESTNET_VAULT_WALLET_SEED ||
+      data.DEVNET_VAULT_WALLET_SEED ||
+      data.AMM_DEVNET_VAULT_WALLET_SEED
     )
   ) {
-    console.error("Error: Need a wallet secret (seed) for at least one network");
+    console.error(
+      "Error: Need a wallet secret (seed) for at least one network"
+    );
   }
 
   if (
     !(
-      (data.ipfsInfuraId && data.ipfsInfuraSecret) ||
-      data.ipfsWeb3StorageApiToken
+      (data.IPFS_INFURA_ID && data.IPFS_INFURA_SECRET) ||
+      data.IPFS_WEB3_STORAGE_API_TOKEN
     )
   ) {
     console.error("Error: Need credentials for at least one IFPS provider");
