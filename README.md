@@ -15,35 +15,38 @@ Inspired by its predecessor [https://github.com/XRPLBounties/Proof-of-Attendance
 
 ### Configuration
 
-- Rename `.env.example` to `.env`, update the values:
-  - Configure networks (only use websocket URLs, preconfigured default values generally work):
-    - `MAINNET_URL`
-    - `TESTNET_URL`
-    - `DEVNET_URL`
-    - `AMM_DEVNET_URL`
-  - Configure vault wallets (a seed value can be empty, but the backend won't be able to process requests on that network):
-    - `MAINNET_VAULT_WALLET_SEED`
-    - `TESTNET_VAULT_WALLET_SEED` (create a funded wallet [here](https://xrpl.org/xrp-testnet-faucet.html))
-    - `DEVNET_VAULT_WALLET_SEED` (create a funded wallet [here](https://xrpl.org/xrp-testnet-faucet.html))
-    - `AMM_DEVNET_VAULT_WALLET_SEED` (create a funded wallet [here](https://xrpl.org/xrp-testnet-faucet.html))
-  - Configure IFPS provider (one is sufficient):
-    - `IPFS_INFURA_ID` and `IPFS_INFURA_SECRET` (create account [here](https://docs.infura.io/infura/getting-started))
-    - `IPFS_WEB3_STORAGE_API_TOKEN` (login with github account, see [here](https://web3.storage/login/))
-  - Configure XUMM App (needs to match the key embedded in the frontend app)
-    - `XUMM_API_KEY` and `XUMM_API_SECRET` (create account [here](https://apps.xumm.dev/))
-  - Configure JSON Web Token (used for server side authentication)
-    - `JWT_SECRET` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
-  - Configure hashids (used to mask/scramble event IDs)
-    - `HASHID_SALT` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
-  - Configure event minting/burning
-    - `MAX_TICKETS` (between 2 and 250, see [here](https://xrpl.org/tickets.html#limitations))
-    - `MAX_EVENT_SLOTS` (maximum number of allowed participants per event)
+Rename `.env.example` to `.env`, update the values:
+
+- Configure networks (only use websocket URLs, preconfigured default values generally work):
+  - `MAINNET_URL`
+  - `TESTNET_URL`
+  - `DEVNET_URL`
+  - `AMM_DEVNET_URL`
+- Configure vault wallets (a seed value can be empty, but the backend won't be able to process requests on that network):
+  - `MAINNET_VAULT_WALLET_SEED`
+  - `TESTNET_VAULT_WALLET_SEED` (create a funded wallet [here](https://xrpl.org/xrp-testnet-faucet.html))
+  - `DEVNET_VAULT_WALLET_SEED` (create a funded wallet [here](https://xrpl.org/xrp-testnet-faucet.html))
+  - `AMM_DEVNET_VAULT_WALLET_SEED` (create a funded wallet [here](https://xrpl.org/xrp-testnet-faucet.html))
+- Configure IFPS provider (one is sufficient):
+  - `IPFS_INFURA_ID` and `IPFS_INFURA_SECRET` (create account [here](https://docs.infura.io/infura/getting-started))
+  - `IPFS_WEB3_STORAGE_API_TOKEN` (login with github account, see [here](https://web3.storage/login/))
+- Configure XUMM App (needs to match the key embedded in the frontend app)
+  - `XUMM_API_KEY` and `XUMM_API_SECRET` (create account [here](https://apps.xumm.dev/))
+- Configure JSON Web Token (used for server side authentication)
+  - `JWT_SECRET` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
+- Configure hashids (used to mask/scramble event IDs)
+  - `HASHID_SALT` (use something like `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
+- Configure event minting/burning
+  - `MAX_TICKETS` (between 2 and 250, see [here](https://xrpl.org/tickets.html#limitations))
+  - `MAX_EVENT_SLOTS` (maximum number of allowed participants per event)
+
+**Important:** You can verify the correctness of your `.env` variables configuration with `yarn run check`.
 
 ### Run
 
 - Install dependencies with `yarn install`
-- Run the server api with `yarn start`
-- Run the daemon with `yarn start:daemon` in a separate terminal
+- Run the server api with `yarn run start`
+- Run the daemon with `yarn run start:daemon` in a separate terminal
 
 ## Notable Changes
 

@@ -4,6 +4,7 @@
   "description": "Backend API service for the Proof of Attendance Protocol Dashboard",
   "author": "Riku Block",
   "scripts": {
+    "check": "ts-node src/check_env.ts",
     "start": "nodemon src/run.ts",
     "start:daemon": "nodemon src/daemon.ts",
     "lint": "eslint -f unix \"src/**/*.{ts,tsx}\"",
