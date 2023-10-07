@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   AccountNFTsResponse,
   AccountObjectsResponse,
+  AccountTxResponse,
+  AccountTxTransaction,
   Client,
   convertStringToHex,
   isValidSecret,
@@ -83,10 +85,35 @@ export class Attendify {
         this.nextEventId = 1;
       }
 
-      // ensure seed wallet users exist
       for (const config of this.networkConfigs) {
         if (isValidSecret(config.vaultWalletSeed)) {
-          const wallet = Wallet.fromSeed(config.vaultWalletSeed);
+          const [client, wallet] = this.getNetworkConfig(config.networkId);
+
+          // ensure default states exist
+          let ledgerIndexStart: number = 0;
+          await client.connect();
+          try {
+            const response = await client.request({
+              command: "ledger",
+              ledger_index: "validated",
+            });
+            ledgerIndexStart = response.result.ledger_index;
+          } finally {
+            await client.disconnect();
+          }
+
+          await orm.State.findOrCreate({
+            where: { name: "default", networkId: config.networkId },
+            defaults: {
+              name: "default",
+              networkId: config.networkId,
+              ledgerIndexStart,
+              ledgerIndexLastChecked: 0,
+            },
+            transaction: t,
+          });
+
+          // ensure seed wallet users exist
           await orm.User.findOrCreate({
             where: { walletAddress: wallet.classicAddress },
             defaults: {
@@ -153,6 +180,87 @@ export class Attendify {
       throw err;
     } finally {
       await client.disconnect();
+    }
+  }
+
+  /**
+   * Scan vault account history for payment transactions (used by daemon)
+   * @param networkId - network identifier
+   * @returns
+   */
+  async scanTransactionHistory(networkId: NetworkIdentifier): Promise<void> {
+    // load states
+    const states = await db.transaction(async (t) => {
+      return await orm.State.findAll({
+        where: {
+          name: "default",
+          ...(networkId !== NetworkIdentifier.UNKNOWN
+            ? { networkId: networkId }
+            : {}),
+        },
+        transaction: t,
+      });
+    });
+
+    for (const state of states) {
+      console.debug(
+        `Processing transaction history for ${
+          NetworkIdentifier[state.networkId]
+        }`
+      );
+      const [client, wallet] = this.getNetworkConfig(state.networkId);
+      await client.connect();
+      try {
+        // fetch history transactions
+        const transactions: AccountTxTransaction[] = [];
+        let res: AccountTxResponse | undefined = undefined;
+        do {
+          res = await client.request({
+            command: "account_tx",
+            account: wallet.classicAddress,
+            ledger_index_min: state.ledgerIndexLastChecked + 1,
+            forward: true, // oldest ledger first
+            limit: 400,
+            marker: res ? res.result.marker : undefined,
+          });
+
+          // pre-filter
+          const filtered = res.result.transactions.filter(
+            (x) =>
+              (x.meta as TransactionMetadata)?.TransactionResult ===
+                "tesSUCCESS" &&
+              (x.tx as Payment)?.Destination === wallet.classicAddress &&
+              x.tx?.Memos?.length === 1
+          );
+
+          transactions.push(...filtered);
+        } while (res?.result.marker);
+
+        // check payments
+        let latestLedgerIndex = state.ledgerIndexLastChecked;
+        for (const x of transactions) {
+          assert(x.tx && x.tx.ledger_index && x.tx.hash);
+          assert(x.tx.ledger_index >= latestLedgerIndex);
+          console.debug(x.tx.ledger_index, x.tx.hash)
+
+          try {
+            await this.checkPayment(state.networkId, x.tx.hash);
+            latestLedgerIndex = x.tx.ledger_index;
+          } catch (err) {
+            console.error(err);
+          }
+        }
+
+        // update state
+        await db.transaction(async (t) => {
+          await state.update(
+            { ledgerIndexLastChecked: latestLedgerIndex },
+            { transaction: t }
+          );
+        });
+      } finally {
+        await client.disconnect();
+      }
     }
   }
 
@@ -1206,6 +1314,9 @@ export class Attendify {
           { transaction: t }
         );
 
+        console.debug(
+          `Successfully verified payment '${tx.result.hash}' (eventId ${event.id})`
+        );
         return true;
       });
     } finally {
@@ -1724,7 +1835,11 @@ export class Attendify {
         where: {
           networkId,
           status: {
-            [Op.or]: [EventStatus.CANCELED, EventStatus.CLOSED, EventStatus.REFUNDED],
+            [Op.or]: [
+              EventStatus.CANCELED,
+              EventStatus.CLOSED,
+              EventStatus.REFUNDED,
+            ],
           },
         },
         transaction: t,

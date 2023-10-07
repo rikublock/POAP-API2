@@ -26,6 +26,48 @@ const sequelize = new Sequelize(config.attendify.db);
 
 export const db = sequelize;
 
+export class State extends Model<
+  InferAttributes<State>,
+  InferCreationAttributes<State>
+> {
+  declare id: CreationOptional<number>;
+  declare name: string;
+  declare networkId: NetworkIdentifier;
+  declare ledgerIndexStart: number;
+  declare ledgerIndexLastChecked: number;
+}
+
+State.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+      allowNull: false,
+    },
+    name: {
+      type: DataTypes.STRING(128),
+      allowNull: false,
+    },
+    networkId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    ledgerIndexStart: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    ledgerIndexLastChecked: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+  },
+  {
+    sequelize,
+    tableName: "state",
+  }
+);
+
 export class User extends Model<
   InferAttributes<User, { omit: "events" | "attendances" | "claims" }>,
   InferCreationAttributes<User, { omit: "events" | "attendances" | "claims" }>
@@ -475,5 +517,6 @@ export const orm = {
   Claim,
   Event,
   NFT,
+  State,
   User,
 };

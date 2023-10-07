@@ -3,10 +3,6 @@ import { Attendify } from "./attendify/attendify";
 import { EventStatus, NetworkIdentifier } from "./types";
 import config from "./config";
 
-// TODO listen for tx
-// TODO add daemon state to db, scan tx since last
-// state: [networkId]: { address, latest ledger, latest hash}
-
 const TARGET_SLEEP = 10000; // ms
 
 export async function main() {
@@ -19,6 +15,15 @@ export async function main() {
   const running = true;
   while (running) {
     const current = Date.now();
+
+    // scan recent transactions
+    try {
+      await AttendifyLib.scanTransactionHistory(
+        NetworkIdentifier.UNKNOWN // any network
+      );
+    } catch (err) {
+      console.error(err);
+    }
 
     // handle paid events
     try {
