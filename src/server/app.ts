@@ -465,7 +465,7 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
           result: result,
         });
       } catch (error) {
-        return next(next);
+        return next(error);
       }
     }
   );
@@ -517,7 +517,7 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
           result: masked,
         });
       } catch (error) {
-        return next(next);
+        return next(error);
       }
     }
   );
@@ -559,7 +559,7 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
           result: result,
         });
       } catch (error) {
-        return next(next);
+        return next(error);
       }
     }
   );
@@ -609,7 +609,7 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
           result: result,
         });
       } catch (error) {
-        return next(next);
+        return next(error);
       }
     }
   );
@@ -658,7 +658,7 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
           result: result,
         });
       } catch (error) {
-        return next(next);
+        return next(error);
       }
     }
   );
