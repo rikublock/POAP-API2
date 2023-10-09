@@ -229,10 +229,16 @@ export class APIPostEventInvite {
 
 export class APIGetEventInfo {
   @Expose()
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  id: number;
+  id?: number;
+
+  @Expose()
+  @IsOptional()
+  @IsHashid()
+  maskedEventId?: string;
 
   @Expose()
   @IsOptional()

@@ -25,7 +25,7 @@ import type { CreatedNode } from "xrpl/dist/npm/models/transactions/metadata";
 import { Op } from "sequelize";
 
 import { AttendifyError } from "./error";
-import { db, orm } from "./models";
+import { db, orm, User } from "./models";
 import { postToIPFS } from "./ipfs";
 import {
   Metadata,
@@ -241,7 +241,7 @@ export class Attendify {
         for (const x of transactions) {
           assert(x.tx && x.tx.ledger_index && x.tx.hash);
           assert(x.tx.ledger_index >= latestLedgerIndex);
-          console.debug(x.tx.ledger_index, x.tx.hash)
+          console.debug(x.tx.ledger_index, x.tx.hash);
 
           try {
             await this.checkPayment(state.networkId, x.tx.hash);
@@ -1573,49 +1573,71 @@ export class Attendify {
   /**
    * Fetch a specific event from the database
    * @param eventId - event identifier
+   * @param wasMasked - whether the request used a masked id
    * @param walletAddress - optional request wallet address to filter results depending on access level
-   * @returns event json object
+   * @returns event json object (details depend on access level)
    */
   async getEvent(
     eventId: number,
+    wasMasked: boolean,
     walletAddress?: string
   ): Promise<Record<string, any> | undefined> {
     return await db.transaction(async (t) => {
       const event = await orm.Event.findOne({
         where: { id: eventId },
-        include: [
-          orm.Event.associations.accounting,
-          {
-            association: orm.Event.associations.attendees,
-            through: { attributes: [] }, // exclude: 'Participation'
-          },
-          orm.Event.associations.nfts,
-          orm.Event.associations.owner,
-        ],
         transaction: t,
       });
 
-      // if managed, restrict access to owner or attendee
-      if (event?.isManaged) {
-        if (
-          event.ownerWalletAddress !== walletAddress &&
-          !(
-            walletAddress &&
-            (await event.hasAttendee(walletAddress, { transaction: t }))
-          )
-        ) {
-          return undefined;
+      // invalid event
+      if (!event) {
+        return;
+      }
+
+      let user: User | null = null;
+      if (walletAddress) {
+        user = await orm.User.findByPk(walletAddress, {
+          transaction: t,
+        });
+      }
+
+      // if unmasked id, restrict access to owner or admin
+      if (!wasMasked) {
+        if (event.ownerWalletAddress !== walletAddress && !user?.isAdmin) {
+          return;
         }
       }
 
-      // if owner, add more info
-      if (event && event.ownerWalletAddress !== walletAddress) {
-        event.accounting = undefined;
-        event.attendees = undefined;
-        event.nfts = undefined;
+      // if managed, restrict access to attendee, owner or admin
+      if (event?.isManaged) {
+        if (
+          !(
+            walletAddress &&
+            (await event.hasAttendee(walletAddress, { transaction: t }))
+          ) &&
+          event.ownerWalletAddress !== walletAddress &&
+          !user?.isAdmin
+        ) {
+          return;
+        }
       }
 
-      return event?.toJSON();
+      // if owner or admin, add more info
+      if (event.ownerWalletAddress === walletAddress || user?.isAdmin) {
+        await event.reload({
+          include: [
+            orm.Event.associations.accounting,
+            {
+              association: orm.Event.associations.attendees,
+              through: { attributes: [] }, // exclude: 'Participation'
+            },
+            orm.Event.associations.nfts,
+            orm.Event.associations.owner,
+          ],
+          transaction: t,
+        });
+      }
+
+      return event.toJSON();
     });
   }
 

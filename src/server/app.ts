@@ -400,7 +400,7 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
   );
 
   /**
-   * Request details about an event
+   * Request details about an event (supports masked ids)
    * @route GET /event/info/:id
    * @returns event json objects
    */
@@ -413,11 +413,14 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
     }),
     async (req: JWTRequest, res: Response, next: NextFunction) => {
       try {
+        const isMasked = isNaN(Number(req.params.id));
+
         // verify request data
         const data = plainToClass(
           APIGetEventInfo,
           {
-            id: req.params.id,
+            id: !isMasked ? req.params.id : undefined,
+            maskedEventId: isMasked ? req.params.id : undefined,
             walletAddress: (req.auth as JwtPayload)?.walletAddress,
           },
           {
@@ -436,7 +439,28 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
           );
         }
 
-        const result = await AttendifyLib.getEvent(data.id, data.walletAddress);
+        let eventId: number;
+        if (isMasked) {
+          const values = hashids.decode(data.maskedEventId!);
+          if (values.length != 1) {
+            return next(
+              new ServerError(
+                HttpStatusCode.BadRequest,
+                "Invalid masked event ID",
+                errors
+              )
+            );
+          }
+          eventId = values[0].valueOf() as number;
+        } else {
+          eventId = data.id!;
+        }
+
+        const result = await AttendifyLib.getEvent(
+          eventId,
+          isMasked,
+          data.walletAddress
+        );
         res.json({
           result: result,
         });
@@ -480,7 +504,7 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
           );
         }
 
-        const event = await AttendifyLib.getEvent(data.id, data.walletAddress);
+        const event = await AttendifyLib.getEvent(data.id, false, data.walletAddress);
         if (!event) {
           return next(new AttendifyError("Invalid event ID"));
         }
