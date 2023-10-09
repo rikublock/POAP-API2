@@ -1630,7 +1630,10 @@ export class Attendify {
               association: orm.Event.associations.attendees,
               through: { attributes: [] }, // exclude: 'Participation'
             },
-            orm.Event.associations.nfts,
+            {
+              association: orm.Event.associations.nfts,
+              include: [orm.NFT.associations.claim],
+            },
             orm.Event.associations.owner,
           ],
           transaction: t,
