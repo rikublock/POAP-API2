@@ -117,7 +117,7 @@ describe("attendify API", () => {
       // mint event
       await lib.mintEvent(eventId);
 
-      let event = await lib.getEvent(eventId, walletAuthorized.classicAddress);
+      let event = await lib.getEvent(eventId, false, walletAuthorized.classicAddress);
       expect(event).toBeDefined();
       assert(event);
       expect(event.status).toBe(EventStatus.ACTIVE);
@@ -133,7 +133,7 @@ describe("attendify API", () => {
       await lib.cancelEvent(eventId);
       await lib.closeEvent(eventId);
 
-      event = await lib.getEvent(eventId, walletAuthorized.classicAddress);
+      event = await lib.getEvent(eventId, false, walletAuthorized.classicAddress);
       expect(event).toBeDefined();
       assert(event);
       expect(event.status).toBe(EventStatus.CLOSED);
@@ -224,7 +224,7 @@ describe("attendify API", () => {
         await client.disconnect();
       }
 
-      const event = await lib.getEvent(eventId, wallet.classicAddress);
+      const event = await lib.getEvent(eventId, false, wallet.classicAddress);
       expect(event?.status).toBe(EventStatus.CANCELED);
     },
     3 * timeout
@@ -261,7 +261,7 @@ describe("attendify API", () => {
         FALLBACK_TX_FEE
       ).toString();
 
-      let event = await lib.getEvent(eventId, walletAuthorized.classicAddress);
+      let event = await lib.getEvent(eventId, false, walletAuthorized.classicAddress);
       expect(event).toBeDefined();
       assert(event);
 
@@ -319,7 +319,7 @@ describe("attendify API", () => {
       // refund deposit
       const hash = await lib.refundDeposit(eventId);
 
-      event = await lib.getEvent(eventId, walletAuthorized.classicAddress);
+      event = await lib.getEvent(eventId, false, walletAuthorized.classicAddress);
       expect(event).toBeDefined();
       assert(event);
       expect(event.status).toBe(EventStatus.REFUNDED);

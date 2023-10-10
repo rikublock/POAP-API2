@@ -160,7 +160,7 @@ describe("express API", () => {
         false
       );
 
-      const event = await lib.getEvent(eventId, wallet.classicAddress);
+      const event = await lib.getEvent(eventId, false, wallet.classicAddress);
       expect(event).toBeDefined();
       assert(event);
 
