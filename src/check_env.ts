@@ -96,7 +96,7 @@ export class EnvVariables {
   @IsString()
   @ValidateIf((obj) => obj.IPFS_INFURA_ID !== "")
   @IsAlphanumeric()
-  @Length(32)
+  @Length(24)
   IPFS_INFURA_ID?: string;
 
   @Expose()
@@ -104,7 +104,7 @@ export class EnvVariables {
   @IsString()
   @ValidateIf((obj) => obj.IPFS_INFURA_SECRET !== "")
   @IsAlphanumeric()
-  @Length(32)
+  @Length(24)
   IPFS_INFURA_SECRET?: string;
 
   @Expose()
