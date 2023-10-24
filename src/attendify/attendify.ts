@@ -1011,8 +1011,12 @@ export class Attendify {
           txs = await Promise.all(promises);
         } catch (err) {
           console.debug(err);
-          await this.cancelEvent(event.id);
-          throw new AttendifyError("NFT mint failed");
+          if ((err as Error).message.includes("tecNO_PERMISSION")) {
+            await this.cancelEvent(eventId);
+            throw new AttendifyError("NFT mint failed, not authorized minter");
+          } else {
+            throw err;
+          }
         }
 
         const ids = txs.map((tx) => (tx.result.meta as any).nftoken_id);
