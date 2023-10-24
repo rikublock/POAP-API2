@@ -296,12 +296,14 @@ export class Attendify {
   /**
    * Create a sell offer for an NFT
    * @param networkId - network identifier
+   * @param eventId - event identifier
    * @param walletAddress - recipient wallet address (offer can only be accepted by this account)
-   * @param tokenId - NFT identifier 
+   * @param tokenId - NFT identifier
    * @returns sell offer index and tx fee costs
    */
   async createSellOffer(
     networkId: NetworkIdentifier,
+    eventId: number,
     walletAddress: string,
     tokenId: string
   ): Promise<[string, bigint]> {
@@ -332,6 +334,14 @@ export class Attendify {
       const accumulatedTxFees = BigInt(tx.result.Fee || FALLBACK_TX_FEE);
 
       return [offerIndex, accumulatedTxFees];
+    } catch (err) {
+      console.debug(err);
+      if ((err as Error).message.includes("tefNFTOKEN_IS_NOT_TRANSFERABLE")) {
+        await this.cancelEvent(eventId);
+        throw new AttendifyError("NFT not transferable, creating offer failed");
+      } else {
+        throw err;
+      }
     } finally {
       client.disconnect();
     }
@@ -350,7 +360,7 @@ export class Attendify {
     createOffer: boolean,
     checkIsManaged: boolean
   ): Promise<Record<string, any>> {
-    return await db.transaction(async (t) => {
+    const [event, user, nft] = await db.transaction(async (t) => {
       const event = await orm.Event.findOne({
         where: { id: eventId },
         include: [orm.Event.associations.accounting],
@@ -407,16 +417,21 @@ export class Attendify {
         throw new AttendifyError("No more available slots");
       }
 
-      let offerIndex: string | undefined = undefined;
-      let txFees: bigint | undefined = undefined;
-      if (createOffer) {
-        [offerIndex, txFees] = await this.createSellOffer(
-          event.networkId,
-          walletAddress,
-          nft.id
-        );
-      }
+      return [event, user, nft];
+    });
 
+    let offerIndex: string | undefined = undefined;
+    let txFees: bigint | undefined = undefined;
+    if (createOffer) {
+      [offerIndex, txFees] = await this.createSellOffer(
+        event.networkId,
+        event.id,
+        walletAddress,
+        nft.id
+      );
+    }
+
+    return await db.transaction(async (t) => {
       // add the participant
       await event.addAttendee(user, { transaction: t });
 
@@ -623,9 +638,8 @@ export class Attendify {
     walletAddress: string,
     eventId: number
   ): Promise<Record<string, any> | null> {
-    return await db.transaction(async (t) => {
-      // query claim
-      const claim = await orm.Claim.findOne({
+    const claim = await db.transaction(async (t) => {
+      return await orm.Claim.findOne({
         where: { ownerWalletAddress: walletAddress },
         include: [
           {
@@ -636,39 +650,45 @@ export class Attendify {
         ],
         transaction: t,
       });
+    });
 
-      if (!(claim && claim.token && claim.token.event)) {
-        // user is not participant
-        return null;
-      }
+    if (!(claim && claim.token && claim.token.event)) {
+      // user is not participant
+      return null;
+    }
 
-      const networkId = claim.token.event.networkId;
+    const networkId = claim.token.event.networkId;
 
-      // verify on chain claimed status
-      if (!claim.claimed) {
-        if (claim.offerIndex) {
-          // check if the sell offer still exists
-          const claimed = !(await this.checkSellOffer(
-            networkId,
-            claim.tokenId,
-            claim.offerIndex
-          ));
+    // verify on chain claimed status
+    if (!claim.claimed) {
+      if (claim.offerIndex) {
+        // check if the sell offer still exists
+        const claimed = !(await this.checkSellOffer(
+          networkId,
+          claim.tokenId,
+          claim.offerIndex
+        ));
 
-          // update database accordingly
-          if (claimed) {
+        // update database accordingly
+        if (claimed) {
+          await db.transaction(async (t) => {
             await claim.update({ claimed: true }, { transaction: t });
-          }
-        } else {
-          // sell offer was previously not created on chain, do it now
-          const [offerIndex, txFees] = await this.createSellOffer(
-            networkId,
-            walletAddress,
-            claim.token.id
-          );
+          });
+        }
+      } else {
+        // sell offer was previously not created on chain, do it now
+        const [offerIndex, txFees] = await this.createSellOffer(
+          networkId,
+          eventId,
+          walletAddress,
+          claim.token.id
+        );
 
+        await db.transaction(async (t) => {
           await claim.update({ offerIndex: offerIndex }, { transaction: t });
 
           // accumulate fees
+          assert(claim && claim.token && claim.token.event);
           assert(claim.token.event.accounting);
           await claim.token.event.accounting?.update(
             {
@@ -678,11 +698,11 @@ export class Attendify {
             },
             { transaction: t }
           );
-        }
+        });
       }
+    }
 
-      return claim.toJSON();
-    });
+    return claim.toJSON();
   }
 
   /**
