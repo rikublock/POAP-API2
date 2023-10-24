@@ -1609,6 +1609,12 @@ export class Attendify {
     return await db.transaction(async (t) => {
       const event = await orm.Event.findOne({
         where: { id: eventId },
+        include: [
+          {
+            association: orm.Event.associations.attendees,
+            through: { attributes: [] }, // exclude: 'Participation'
+          },
+        ],
         transaction: t,
       });
 
