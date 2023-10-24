@@ -297,7 +297,7 @@ export class Attendify {
    * Create a sell offer for an NFT
    * @param networkId - network identifier
    * @param walletAddress - recipient wallet address (offer can only be accepted by this account)
-   * @param tokenId - account wallet address
+   * @param tokenId - NFT identifier 
    * @returns sell offer index and tx fee costs
    */
   async createSellOffer(
