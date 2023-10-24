@@ -78,7 +78,7 @@ const DEFAULT: Config = {
     xummApiSecret: process.env.XUMM_API_SECRET as string,
     jwtSecret: process.env.JWT_SECRET as string,
     hashidSalt: process.env.HASHID_SALT as string,
-    hashidLength: 2,
+    hashidLength: 8,
     maxEventSlots: parseInt(process.env.MAX_EVENT_SLOTS as string),
   },
 };
