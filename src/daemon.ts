@@ -33,8 +33,12 @@ export async function main() {
       );
 
       for (const event of events) {
-        console.debug(`Minting event ${event.id}`);
-        await AttendifyLib.mintEvent(event.id);
+        try {
+          console.debug(`Minting event ${event.id}`);
+          await AttendifyLib.mintEvent(event.id);
+        } catch (err) {
+          console.error(err);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -47,8 +51,12 @@ export async function main() {
       );
 
       for (const event of events) {
-        console.debug(`Canceling event ${event.id}`);
-        await AttendifyLib.cancelEvent(event.id);
+        try {
+          console.debug(`Canceling event ${event.id}`);
+          await AttendifyLib.cancelEvent(event.id);
+        } catch (err) {
+          console.error(err);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -62,8 +70,12 @@ export async function main() {
       );
 
       for (const event of events) {
-        console.debug(`Closing event ${event.id}`);
-        await AttendifyLib.closeEvent(event.id);
+        try {
+          console.debug(`Closing event ${event.id}`);
+          await AttendifyLib.closeEvent(event.id);
+        } catch (err) {
+          console.error(err);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -77,8 +89,12 @@ export async function main() {
       );
 
       for (const event of events) {
-        console.debug(`Refunding event ${event.id}`);
-        await AttendifyLib.refundDeposit(event.id);
+        try {
+          console.debug(`Refunding event ${event.id}`);
+          await AttendifyLib.refundDeposit(event.id);
+        } catch (err) {
+          console.error(err);
+        }
       }
     } catch (err) {
       console.error(err);
