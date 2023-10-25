@@ -38,7 +38,7 @@ const DEFAULT: Config = {
     db: {
       dialect: "sqlite",
       storage: "backend.sqlite3",
-      logging: true,
+      logging: false,
       define: {
         timestamps: false,
       },
