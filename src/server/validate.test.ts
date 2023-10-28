@@ -413,7 +413,7 @@ describe("transform APIPostEventCreate", () => {
       imageUrl: "https://github.com",
       tokenCount: 2,
       dateStart: "2023-06-18T22:00:00.000Z",
-      dateEnd: "2023-06-28T22:00:00.000Z",
+      dateEnd: "2033-06-28T22:00:00.000Z",
       isManaged: true,
     };
   });
@@ -448,7 +448,7 @@ describe("validate APIPostEventCreate", () => {
     data.imageUrl = "https://github.com";
     data.tokenCount = 2;
     data.dateStart = new Date();
-    data.dateEnd = new Date();
+    data.dateEnd = new Date(Date.now() + 10000);
     data.isManaged = true;
   });
 

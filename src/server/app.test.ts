@@ -90,7 +90,7 @@ describe("express API", () => {
           imageUrl: "https://github.com",
           tokenCount: 8,
           dateStart: new Date(),
-          dateEnd: new Date(),
+          dateEnd: new Date(Date.now() + 10000),
           isManaged: false,
         });
 
@@ -155,7 +155,7 @@ describe("express API", () => {
           imageUrl: "https://github.com",
           tokenCount: 8,
           dateStart: new Date(),
-          dateEnd: new Date(),
+          dateEnd: new Date(Date.now() + 10000),
         },
         false
       );
