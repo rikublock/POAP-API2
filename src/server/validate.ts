@@ -108,6 +108,28 @@ export function IsNotTrimmable(validationOptions?: ValidationOptions) {
   };
 }
 
+@ValidatorConstraint()
+export class IsAfterNowConstraint implements ValidatorConstraintInterface {
+  validate(date: Date, args: ValidationArguments) {
+    return Date.now() < date.getTime();
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return `Date ${args.value.toISOString()} is before now!`;
+  }
+}
+
+function IsAfterNow(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      target: object.constructor,
+      propertyName: propertyName,
+      options: validationOptions,
+      validator: IsAfterNowConstraint,
+    });
+  };
+}
+
 export class APIGetEventMinter {
   @Expose()
   @Type(() => Number)
@@ -163,6 +185,7 @@ export class APIPostEventCreate {
 
   @Expose()
   @IsDate()
+  @IsAfterNow()
   @Type(() => Date)
   dateEnd: Date;
 
