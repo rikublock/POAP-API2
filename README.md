@@ -40,7 +40,15 @@ Rename `.env.example` to `.env`, update the values:
   - `MAX_TICKETS` (between 2 and 250, see [here](https://xrpl.org/tickets.html#limitations))
   - `MAX_EVENT_SLOTS` (maximum number of allowed participants per event)
 
-**Important:** You can verify the correctness of your `.env` variables configuration with `yarn run check`.
+> **Important:** You can verify the correctness of your `.env` variables configuration with `yarn run check`.
+
+### Reserve Requirements
+
+A platform (vault wallet) account needs a minimum balance of **62 XRP** to function correctly:
+
+- 10 XRP base reserve (account activation)
+- 50 XRP owner reserve for tickets, used for batch minting/burning (configurable, should be at least `2 * MAX_TICKETS`)
+- 2 XRP as a safety buffer
 
 ### Run
 
@@ -48,10 +56,35 @@ Rename `.env.example` to `.env`, update the values:
 - Run the server api with `yarn run start`
 - Run the daemon with `yarn run start:daemon` in a separate terminal
 
-## Notable Changes
+## Administration
+
+Users with admin permissions have the capability to monitor and manage the platform through the frontend:
+
+- View curent vault account balances and reserve requirements
+- List all events hosted on the platform
+- List active organizers on the platform
+- Cancel active events
+
+> **Note:** It is advisable to configure at least one admin account.
+
+### Manage Admins
+
+Any platform user can be given admin privileges.
+Use the `yarn run console admin` script to add or remove the admin account flag in the database.
+
+Examples:
+
+```sh
+yarn run console admin --help
+yarn run console admin add r3drY2fHEEzFiU1EHpw2Qjpa2EHGs8cMHo
+yarn run console admin add r3drY2fHEEzFiU1EHpw2Qjpa2EHGs8cMHo true
+yarn run console admin remove r3drY2fHEEzFiU1EHpw2Qjpa2EHGs8cMHo
+```
+
+## Notable Features
 
 - Typescript project
-- Full support for the Xumm and Gem walllets
+- Full support for the Xaman (Xumm) and Gem wallet
 - Support for any network (e.g. Testnet)
 - Data is stored in a database (with orm), available models:
   - `User`
@@ -61,7 +94,7 @@ Rename `.env.example` to `.env`, update the values:
   - `Claim`
 - Strict request data validation
 - Server side jwt based authentication
-- New API endpoints:
+- API endpoints:
   - GET `/event/minter` - fetch authorized minter info
   - POST `/event/create` - create a new event
   - POST `/event/cancel` - cancel an event
@@ -86,27 +119,6 @@ Rename `.env.example` to `.env`, update the values:
 - Support for alternative IPFS provider (web3.storage)
 - Many more overall code improvements
 
-## Reserve Requirements
-
-A platform (vault wallet) account needs a minimum balance of 62 XRP to function correctly:
-
-- 10 XRP base reserve (account activation)
-- 50 XRP owner reserve for tickets, used for batch minting/burning (configurable, should be at least `2 * MAX_TICKETS`)
-- 2 XRP as a safety buffer
-
-## Manage Admins
-
-Use the `yarn run console admin` script to add or remove the admin account flag in the database.
-
-Examples:
-
-```sh
-yarn run console admin --help
-yarn run console admin add r3drY2fHEEzFiU1EHpw2Qjpa2EHGs8cMHo
-yarn run console admin add r3drY2fHEEzFiU1EHpw2Qjpa2EHGs8cMHo true
-yarn run console admin remove r3drY2fHEEzFiU1EHpw2Qjpa2EHGs8cMHo
-```
-
 ## Documentation
 
-Full API and module documentation is available [here](https://rikublock.github.io/POAP-API2/).
+Full API reference and module documentation is available [here](https://rikublock.github.io/POAP-API2/).
