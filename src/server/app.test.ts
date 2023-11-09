@@ -13,6 +13,7 @@ import { db } from "../attendify/models";
 import { setup } from "./app";
 import { generateToken } from "./auth";
 import { ServerError } from "./error";
+import { hashids } from "./util";
 
 describe("express API", () => {
   let lib: Attendify;
@@ -96,6 +97,35 @@ describe("express API", () => {
 
       expect(response.statusCode).toBe(HttpStatusCode.Ok);
       expect(response.body).toEqual({ result: { eventId: 1 } });
+    },
+    timeout
+  );
+
+  test.each([
+    ["rn8YZi4VEFZARavNtbopqEfh6NXycXg7eN", true],
+    ["rGEYjmgPZ3e9BNJoG6pyBCrxdkcku9vVik", false],
+    ["r35MXNzBdU4hZCEeRv2tx8axC3nLBy2pqC", false],
+    ["rPd9oB2Kdot9HSsXSeFYpKZUV3vDsBzv73", false],
+  ])(
+    "GET /ownership/verify",
+    async (walletAddress, expected) => {
+      const ownerWalletAddress = "r35MXNzBdU4hZCEeRv2tx8axC3nLBy2pqC"; // issuer
+      const eventId = 25; // NFT taxon
+
+      const token = await generateToken(walletAddress, [], true);
+      const maskedEventId = hashids.encode(eventId);
+
+      const response = await request(app)
+        .get("/ownership/verify")
+        .set("Authorization", `Bearer ${token}`)
+        .query({
+          networkId: networkConfig.networkId,
+          ownerWalletAddress: ownerWalletAddress,
+          maskedEventId: maskedEventId,
+        });
+
+      expect(response.statusCode).toBe(HttpStatusCode.Ok);
+      expect(response.body).toEqual({ result: expected });
     },
     timeout
   );

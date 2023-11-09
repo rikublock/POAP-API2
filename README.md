@@ -105,6 +105,7 @@ yarn run console admin remove r3drY2fHEEzFiU1EHpw2Qjpa2EHGs8cMHo
   - GET `/event/link/:id` - fetch a masked invitation link for an event
   - GET `/events/all` - fetch a list of all events
   - GET `/events/owned` - fetch a list of user owned events
+  - GET `/ownership/verify/` - verify NFT ownership for an event
   - GET `/offers` - fetch a list of NFT offers
   - GET `/user/info` - fetch details about a user
   - POST `/user/update` - update user profile

@@ -316,6 +316,26 @@ export class APIGetEventsOwned {
   limit?: number;
 }
 
+export class APIGetOwnershipVerify {
+  @Expose()
+  @Type(() => Number)
+  @IsEnum(NetworkIdentifier)
+  @NotEquals(NetworkIdentifier.UNKNOWN)
+  networkId: NetworkIdentifier;
+
+  @Expose()
+  @IsXrpAddress()
+  walletAddress: string;
+
+  @Expose()
+  @IsXrpAddress()
+  ownerWalletAddress: string;
+
+  @Expose()
+  @IsHashid()
+  maskedEventId: string;
+}
+
 export class APIGetOffers {
   @Expose()
   @Type(() => Number)

@@ -40,6 +40,7 @@ import {
   APIGetEventsAll,
   APIGetEventsOwned,
   APIGetOffers,
+  APIGetOwnershipVerify,
   APIGetUserInfo,
   APIPostAuthLogin,
   APIPostAuthNonce,
@@ -504,7 +505,11 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
           );
         }
 
-        const event = await AttendifyLib.getEvent(data.id, false, data.walletAddress);
+        const event = await AttendifyLib.getEvent(
+          data.id,
+          false,
+          data.walletAddress
+        );
         if (!event) {
           return next(new AttendifyError("Invalid event ID"));
         }
@@ -604,6 +609,69 @@ export async function setup(AttendifyLib: Attendify): Promise<Express> {
           data.networkId,
           data.walletAddress,
           data.limit
+        );
+        res.json({
+          result: result,
+        });
+      } catch (error) {
+        return next(error);
+      }
+    }
+  );
+
+  /**
+   * Verify event NFT ownership
+   * @route GET /ownership/verify/
+   * @returns true, if the account is a legit participant
+   */
+  app.get(
+    "/ownership/verify",
+    authMiddleware({
+      secret: config.server.jwtSecret,
+      algorithms: ["HS256"],
+    }),
+    async (req: JWTRequest, res: Response, next: NextFunction) => {
+      try {
+        // verify request data
+        const data = plainToClass(
+          APIGetOwnershipVerify,
+          {
+            ...req.query,
+            walletAddress: (req.auth as JwtPayload)?.walletAddress,
+          },
+          {
+            strategy: "exposeAll",
+            excludeExtraneousValues: true,
+          }
+        );
+        const errors = await validate(data);
+        if (errors.length > 0) {
+          return next(
+            new ServerError(
+              HttpStatusCode.BadRequest,
+              "Data validation failed",
+              errors
+            )
+          );
+        }
+
+        const values = hashids.decode(data.maskedEventId);
+        if (values.length != 1) {
+          return next(
+            new ServerError(
+              HttpStatusCode.BadRequest,
+              "Invalid masked event ID",
+              errors
+            )
+          );
+        }
+
+        const eventId = values[0].valueOf() as number;
+        const result = await AttendifyLib.checkNFTOwnership(
+          data.networkId,
+          data.walletAddress,
+          data.ownerWalletAddress,
+          eventId
         );
         res.json({
           result: result,

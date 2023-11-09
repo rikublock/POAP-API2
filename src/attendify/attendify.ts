@@ -294,6 +294,53 @@ export class Attendify {
   }
 
   /**
+   * Check in the ledger if an account owns an NFT of an event
+   * @param networkId - network identifier
+   * @param walletAddress - account wallet address
+   * @param ownerWalletAddress - issuer wallet address
+   * @param eventId - event identifier (NFT taxon)
+   * @returns  true, if the account is a legit participant
+   */
+  async checkNFTOwnership(
+    networkId: NetworkIdentifier,
+    walletAddress: string,
+    ownerWalletAddress: string,
+    eventId: number
+  ): Promise<boolean> {
+    console.debug(`Checking NFTs for account ${walletAddress}`);
+
+    const [client, wallet] = this.getNetworkConfig(networkId);
+    await client.connect();
+    try {
+      // find all existing NFTs
+      let res: AccountNFTsResponse | undefined = undefined;
+      do {
+        res = await client.request({
+          command: "account_nfts",
+          account: walletAddress,
+          ledger_index: "validated",
+          limit: 400,
+          marker: res ? res.result.marker : undefined,
+        });
+
+        // filter results
+        for (const token of res.result.account_nfts) {
+          if (
+            token.Issuer == ownerWalletAddress &&
+            token.NFTokenTaxon == eventId
+          ) {
+            return true;
+          }
+        }
+      } while (res.result.marker);
+
+      return false;
+    } finally {
+      await client.disconnect();
+    }
+  }
+
+  /**
    * Create a sell offer for an NFT
    * @param networkId - network identifier
    * @param eventId - event identifier
